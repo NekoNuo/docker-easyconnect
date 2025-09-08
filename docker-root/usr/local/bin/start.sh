@@ -163,48 +163,18 @@ start_tigervncserver() {
 	# 设置 VNC 密码
 	if [ -n "$PASSWORD" ]; then
 		echo "VNC: 设置 VNC 密码"
-		# 使用交互式方式设置密码，避免管道问题
-		expect << EOF
-spawn tigervncpasswd ~/.vnc/passwd
-expect "Password:"
-send "$PASSWORD\r"
-expect "Verify:"
-send "$PASSWORD\r"
-expect "Would you like to enter a view-only password (y/n)?"
-send "n\r"
-expect eof
-EOF
+		# 使用 -f 参数直接从标准输入读取密码
+		printf %s "$PASSWORD" | tigervncpasswd -f > ~/.vnc/passwd
 	else
 		# 如果没有设置密码，使用默认密码
 		echo "VNC: 使用默认密码 'password'"
-		expect << EOF
-spawn tigervncpasswd ~/.vnc/passwd
-expect "Password:"
-send "password\r"
-expect "Verify:"
-send "password\r"
-expect "Would you like to enter a view-only password (y/n)?"
-send "n\r"
-expect eof
-EOF
+		printf %s "password" | tigervncpasswd -f > ~/.vnc/passwd
 	fi
 
 	# 验证密码文件是否创建成功
 	if [ ! -f ~/.vnc/passwd ]; then
 		echo "VNC: 错误 - 无法创建 VNC 密码文件"
-
-		# 尝试备用方法
-		echo "VNC: 尝试备用密码设置方法..."
-		if [ -n "$PASSWORD" ]; then
-			printf %s "$PASSWORD" | tigervncpasswd -f > ~/.vnc/passwd 2>/dev/null || true
-		else
-			printf %s "password" | tigervncpasswd -f > ~/.vnc/passwd 2>/dev/null || true
-		fi
-
-		if [ ! -f ~/.vnc/passwd ]; then
-			echo "VNC: 错误 - 备用方法也失败"
-			return 1
-		fi
+		return 1
 	fi
 
 	# 设置密码文件权限
@@ -317,8 +287,8 @@ EOF
 		fi
 	fi
 
-	# 构建 VNC 服务器参数
-	VNC_ARGS="-geometry $VNC_SIZE -localhost=0 -passwd ~/.vnc/passwd -xstartup flwm"
+	# 构建 VNC 服务器参数 (使用 rfbauth 而不是 passwd)
+	VNC_ARGS="-geometry $VNC_SIZE -localhost=0 -rfbauth ~/.vnc/passwd"
 	VNC_ARGS="$VNC_ARGS -depth $VNC_DEPTH"
 	VNC_ARGS="$VNC_ARGS -DeferTime $VNC_DEFERTIME"
 
@@ -356,18 +326,11 @@ EOF
 	export XAUTHORITY=~/.Xauthority
 	export XDG_RUNTIME_DIR=/tmp
 
-	# 创建 VNC 启动脚本
+	# 创建简单的 VNC 启动脚本
 	cat > ~/.vnc/xstartup << 'EOF'
 #!/bin/bash
-# VNC 桌面启动脚本
 export XDG_RUNTIME_DIR=/tmp
-export XAUTHORITY=~/.Xauthority
-
-# 启动窗口管理器
 flwm &
-
-# 保持脚本运行
-exec /bin/bash
 EOF
 	chmod +x ~/.vnc/xstartup
 
