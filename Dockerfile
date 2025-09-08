@@ -19,7 +19,7 @@ RUN . /tmp/build-scripts/config-apt.sh && \
         libx11-xcb1 libnss3 libasound2 iptables xclip libxtst6 \
         dante-server tigervnc-standalone-server tigervnc-tools psmisc flwm x11-utils \
         busybox libssl-dev iproute2 tinyproxy-bin libxss1 ca-certificates \
-        fonts-wqy-microhei socat $qemu_pkgs $extra_pkgs && \
+        fonts-wqy-microhei socat jq bc netcat-openbsd $qemu_pkgs $extra_pkgs && \
     rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -r socks && useradd -r -g socks socks
@@ -35,6 +35,12 @@ RUN /tmp/build-scripts/install-vpn-gui.sh
 COPY ./docker-root /
 
 COPY --from=hagb/docker-easyconnect:build /results/fake-hwaddr/ /results/fake-getlogin/ /results/tinyproxy-ws/ /results/novnc/ /
+
+# 设置 VNC 优化脚本权限
+RUN chmod +x /usr/local/bin/vnc-performance-monitor.sh && \
+    chmod +x /usr/local/bin/vnc-optimize.sh && \
+    mkdir -p /etc/tigervnc /var/log && \
+    touch /var/log/vnc-performance.log
 
 #ENV TYPE="" PASSWORD="" LOOP=""
 #ENV DISPLAY

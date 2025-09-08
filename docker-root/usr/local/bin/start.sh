@@ -149,13 +149,139 @@ init_vpn_config() {
 
 start_tigervncserver() {
 	# $PASSWORD 不为空时，更新 vnc 密码
-	[ -e ~/.vnc/passwd ] || (mkdir -p ~/.vnc && (echo password | tigervncpasswd -f > ~/.vnc/passwd)) 
+	[ -e ~/.vnc/passwd ] || (mkdir -p ~/.vnc && (echo password | tigervncpasswd -f > ~/.vnc/passwd))
 	[ -n "$PASSWORD" ] && printf %s "$PASSWORD" | tigervncpasswd -f > ~/.vnc/passwd
 
 	VNC_SIZE="${VNC_SIZE:-1110x620}"
 
+	# VNC 性能优化配置
+	VNC_ENCODING="${VNC_ENCODING:-tight}"  # 编码格式: tight, zrle, hextile, raw
+	VNC_QUALITY="${VNC_QUALITY:-6}"        # 压缩质量: 0-9 (0=最高压缩, 9=最高质量)
+	VNC_COMPRESS="${VNC_COMPRESS:-6}"      # 压缩级别: 0-9 (0=无压缩, 9=最高压缩)
+	VNC_FRAMERATE="${VNC_FRAMERATE:-30}"   # 帧率限制: 1-60 fps
+	VNC_DEPTH="${VNC_DEPTH:-24}"           # 色彩深度: 8, 16, 24, 32
+	VNC_DEFERTIME="${VNC_DEFERTIME:-1}"    # 延迟更新时间(ms): 0-200
+
+	# 根据网络条件和服务器配置自动调整参数
+	if [ -n "$VNC_NETWORK_MODE" ]; then
+		case "$VNC_NETWORK_MODE" in
+			"fast"|"lan")
+				VNC_ENCODING="raw"
+				VNC_QUALITY="9"
+				VNC_COMPRESS="0"
+				VNC_FRAMERATE="60"
+				VNC_DEPTH="32"
+				VNC_DEFERTIME="0"
+				echo "VNC: 配置为高速网络模式 (LAN)"
+				;;
+			"slow"|"wan"|"mobile")
+				VNC_ENCODING="tight"
+				VNC_QUALITY="2"
+				VNC_COMPRESS="9"
+				VNC_FRAMERATE="15"
+				VNC_DEPTH="16"
+				VNC_DEFERTIME="50"
+				echo "VNC: 配置为低速网络模式 (WAN/Mobile)"
+				;;
+			"lowres"|"minimal")
+				VNC_ENCODING="tight"
+				VNC_QUALITY="1"
+				VNC_COMPRESS="9"
+				VNC_FRAMERATE="10"
+				VNC_DEPTH="8"
+				VNC_DEFERTIME="100"
+				VNC_SIZE="800x600"  # 降低分辨率
+				echo "VNC: 配置为低资源模式 (Minimal)"
+				;;
+			"balanced"|*)
+				VNC_ENCODING="tight"
+				VNC_QUALITY="6"
+				VNC_COMPRESS="6"
+				VNC_FRAMERATE="30"
+				VNC_DEPTH="24"
+				VNC_DEFERTIME="1"
+				echo "VNC: 配置为平衡模式 (默认)"
+				;;
+		esac
+	fi
+
+	# 自动检测服务器配置并优化
+	if [ "$VNC_AUTO_LOWRES" = "1" ]; then
+		echo "VNC: 检测服务器配置..."
+
+		# 检测可用内存 (MB)
+		local available_mem=$(free -m | awk 'NR==2{printf "%.0f", $7}')
+		# 检测 CPU 核心数
+		local cpu_cores=$(nproc)
+		# 检测系统负载
+		local load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk -F',' '{print $1}' | tr -d ' ' | cut -d'.' -f1)
+
+		echo "VNC: 系统资源 - 内存:${available_mem}MB CPU:${cpu_cores}核心 负载:${load_avg}"
+
+		# 低内存优化 (小于 512MB 可用内存)
+		if [ "$available_mem" -lt 512 ]; then
+			echo "VNC: 检测到低内存环境，启用内存优化模式"
+			VNC_ENCODING="tight"
+			VNC_QUALITY="1"
+			VNC_COMPRESS="9"
+			VNC_DEPTH="8"
+			VNC_SIZE="640x480"
+			VNC_FRAMERATE="8"
+			VNC_DEFERTIME="200"
+		# 中等内存优化 (小于 1GB 可用内存)
+		elif [ "$available_mem" -lt 1024 ]; then
+			echo "VNC: 检测到中等内存环境，启用轻量优化模式"
+			VNC_ENCODING="tight"
+			VNC_QUALITY="3"
+			VNC_COMPRESS="8"
+			VNC_DEPTH="16"
+			VNC_SIZE="800x600"
+			VNC_FRAMERATE="15"
+			VNC_DEFERTIME="50"
+		fi
+
+		# 低 CPU 优化 (单核或高负载)
+		if [ "$cpu_cores" -eq 1 ] || [ "$load_avg" -gt 2 ]; then
+			echo "VNC: 检测到 CPU 资源紧张，启用 CPU 优化模式"
+			VNC_FRAMERATE=$((VNC_FRAMERATE / 2))
+			[ "$VNC_FRAMERATE" -lt 5 ] && VNC_FRAMERATE=5
+			VNC_DEFERTIME=$((VNC_DEFERTIME + 50))
+			VNC_QUALITY=$((VNC_QUALITY - 1))
+			[ "$VNC_QUALITY" -lt 0 ] && VNC_QUALITY=0
+		fi
+	fi
+
+	# 构建 VNC 服务器参数
+	VNC_ARGS="-geometry $VNC_SIZE -localhost no -passwd ~/.vnc/passwd -xstartup flwm"
+	VNC_ARGS="$VNC_ARGS -depth $VNC_DEPTH"
+	VNC_ARGS="$VNC_ARGS -DeferTime $VNC_DEFERTIME"
+
+	# 添加编码相关参数
+	case "$VNC_ENCODING" in
+		"tight")
+			VNC_ARGS="$VNC_ARGS -PreferredEncoding tight"
+			VNC_ARGS="$VNC_ARGS -QualityLevel $VNC_QUALITY"
+			VNC_ARGS="$VNC_ARGS -CompressLevel $VNC_COMPRESS"
+			;;
+		"zrle")
+			VNC_ARGS="$VNC_ARGS -PreferredEncoding ZRLE"
+			VNC_ARGS="$VNC_ARGS -CompressLevel $VNC_COMPRESS"
+			;;
+		"hextile")
+			VNC_ARGS="$VNC_ARGS -PreferredEncoding hextile"
+			;;
+		"raw")
+			VNC_ARGS="$VNC_ARGS -PreferredEncoding raw"
+			;;
+	esac
+
+	# 帧率控制 (通过环境变量传递给 VNC 服务器)
+	export VNC_FRAMERATE
+
+	echo "VNC: 启动参数 - 编码:$VNC_ENCODING 质量:$VNC_QUALITY 压缩:$VNC_COMPRESS 帧率:${VNC_FRAMERATE}fps 深度:${VNC_DEPTH}bit"
+
 	open_port 5901
-	tigervncserver "$DISPLAY" -geometry "$VNC_SIZE" -localhost no -passwd ~/.vnc/passwd -xstartup flwm
+	tigervncserver "$DISPLAY" $VNC_ARGS
 	stalonetray -f 0 2> /dev/null &
 
 	if [ -n "$ECPASSWORD" ]; then
@@ -173,6 +299,13 @@ start_tigervncserver() {
 	if [ -n "$USE_NOVNC" ]; then
 		open_port 8080
 		novnc
+	fi
+
+	# 启动 VNC 性能监控 (如果启用)
+	if [ "$VNC_AUTO_OPTIMIZE" = "1" ]; then
+		echo "启动 VNC 自动优化和性能监控..."
+		vnc-optimize.sh auto
+		vnc-performance-monitor.sh monitor &
 	fi
 
 }
