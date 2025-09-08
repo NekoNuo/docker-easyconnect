@@ -30,7 +30,7 @@ echo "  -e VNC_DEPTH=16 \\"
 echo "  -p 127.0.0.1:5901:5901 \\"
 echo "  -p 127.0.0.1:1080:1080 \\"
 echo "  -p 127.0.0.1:8888:8888 \\"
-echo "  hagb/docker-easyconnect:latest"
+echo "  gys619/docker-easyconnect-atrust:atrust-amd64"
 
 echo ""
 echo "3. 低配置服务器模式 (推荐用于 <1GB 内存):"

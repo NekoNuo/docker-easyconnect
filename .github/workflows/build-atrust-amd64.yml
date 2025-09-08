@@ -25,7 +25,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: your-dockerhub-username/docker-easyconnect-atrust
+  IMAGE_NAME: gys619/docker-easyconnect-atrust
   PLATFORM: linux/amd64
 
 jobs:

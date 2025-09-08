@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   atrust:
-    image: your-dockerhub-username/docker-easyconnect-atrust:atrust-amd64
+    image: gys619/docker-easyconnect-atrust:atrust-amd64
     container_name: atrust-vnc
     restart: unless-stopped
     
@@ -87,7 +87,7 @@ services:
 
   # 低配置服务器版本 (可选)
   atrust-lowres:
-    image: your-dockerhub-username/docker-easyconnect-atrust:atrust-amd64
+    image: gys619/docker-easyconnect-atrust:atrust-amd64
     container_name: atrust-vnc-lowres
     restart: unless-stopped
     profiles: ["lowres"]  # 使用 --profile lowres 启动

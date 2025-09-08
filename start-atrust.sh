@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # 配置
-DOCKER_IMAGE="your-dockerhub-username/docker-easyconnect-atrust:atrust-amd64"
+DOCKER_IMAGE="gys619/docker-easyconnect-atrust:atrust-amd64"
 CONTAINER_NAME="atrust-vnc"
 VNC_PASSWORD=""
 SERVER_TYPE="normal"  # normal, lowres, minimal
