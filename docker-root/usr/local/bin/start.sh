@@ -151,28 +151,72 @@ start_tigervncserver() {
 	# 确保必要的目录和文件存在
 	mkdir -p ~/.vnc
 	mkdir -p /tmp
+	chmod 1777 /tmp  # 确保 /tmp 有正确的权限
 
 	# 创建 X11 认证文件
 	touch ~/.Xauthority
 	chmod 600 ~/.Xauthority
 
+	# 清理旧的 VNC 密码文件
+	rm -f ~/.vnc/passwd
+
 	# 设置 VNC 密码
 	if [ -n "$PASSWORD" ]; then
 		echo "VNC: 设置 VNC 密码"
-		printf %s "$PASSWORD" | tigervncpasswd -f > ~/.vnc/passwd
-		chmod 600 ~/.vnc/passwd
+		# 使用交互式方式设置密码，避免管道问题
+		expect << EOF
+spawn tigervncpasswd ~/.vnc/passwd
+expect "Password:"
+send "$PASSWORD\r"
+expect "Verify:"
+send "$PASSWORD\r"
+expect "Would you like to enter a view-only password (y/n)?"
+send "n\r"
+expect eof
+EOF
 	else
 		# 如果没有设置密码，使用默认密码
-		echo "VNC: 使用默认密码"
-		echo "password" | tigervncpasswd -f > ~/.vnc/passwd
-		chmod 600 ~/.vnc/passwd
+		echo "VNC: 使用默认密码 'password'"
+		expect << EOF
+spawn tigervncpasswd ~/.vnc/passwd
+expect "Password:"
+send "password\r"
+expect "Verify:"
+send "password\r"
+expect "Would you like to enter a view-only password (y/n)?"
+send "n\r"
+expect eof
+EOF
 	fi
 
 	# 验证密码文件是否创建成功
 	if [ ! -f ~/.vnc/passwd ]; then
 		echo "VNC: 错误 - 无法创建 VNC 密码文件"
+
+		# 尝试备用方法
+		echo "VNC: 尝试备用密码设置方法..."
+		if [ -n "$PASSWORD" ]; then
+			printf %s "$PASSWORD" | tigervncpasswd -f > ~/.vnc/passwd 2>/dev/null || true
+		else
+			printf %s "password" | tigervncpasswd -f > ~/.vnc/passwd 2>/dev/null || true
+		fi
+
+		if [ ! -f ~/.vnc/passwd ]; then
+			echo "VNC: 错误 - 备用方法也失败"
+			return 1
+		fi
+	fi
+
+	# 设置密码文件权限
+	chmod 600 ~/.vnc/passwd
+
+	# 验证密码文件内容
+	if [ ! -s ~/.vnc/passwd ]; then
+		echo "VNC: 错误 - 密码文件为空"
 		return 1
 	fi
+
+	echo "VNC: 密码文件创建成功 ($(stat -c%s ~/.vnc/passwd) 字节)"
 
 	VNC_SIZE="${VNC_SIZE:-1110x620}"
 
