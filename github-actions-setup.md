@@ -7,7 +7,7 @@
 ```yaml
 env:
   REGISTRY: docker.io  # 或者您的私有仓库地址
-  IMAGE_NAME: your-dockerhub-username/docker-easyconnect-atrust  # 替换为您的用户名和镜像名
+  IMAGE_NAME: gys619/docker-easyconnect-atrust  # 已更新为您的用户名
 ```
 
 ## 2. 设置 GitHub Secrets
@@ -87,7 +87,7 @@ docker run --rm --device /dev/net/tun --cap-add NET_ADMIN -ti \
   -p 127.0.0.1:8888:8888 \
   -p 127.0.0.1:54631:54631 \
   --sysctl net.ipv4.conf.default.route_localnet=1 \
-  your-dockerhub-username/docker-easyconnect-atrust:atrust-amd64
+  gys619/docker-easyconnect-atrust:atrust-amd64
 
 # 低配置服务器使用
 docker run --rm --device /dev/net/tun --cap-add NET_ADMIN -ti \
@@ -100,7 +100,7 @@ docker run --rm --device /dev/net/tun --cap-add NET_ADMIN -ti \
   -p 127.0.0.1:8888:8888 \
   -p 127.0.0.1:54631:54631 \
   --sysctl net.ipv4.conf.default.route_localnet=1 \
-  your-dockerhub-username/docker-easyconnect-atrust:atrust-amd64
+  gys619/docker-easyconnect-atrust:atrust-amd64
 ```
 
 ## 8. 监控构建

@@ -252,26 +252,24 @@ start_tigervncserver() {
 	fi
 
 	# 构建 VNC 服务器参数
-	VNC_ARGS="-geometry $VNC_SIZE -localhost no -passwd ~/.vnc/passwd -xstartup flwm"
+	VNC_ARGS="-geometry $VNC_SIZE -localhost=0 -passwd ~/.vnc/passwd -xstartup flwm"
 	VNC_ARGS="$VNC_ARGS -depth $VNC_DEPTH"
 	VNC_ARGS="$VNC_ARGS -DeferTime $VNC_DEFERTIME"
 
-	# 添加编码相关参数
+	# 添加编码相关参数 (注意：这些参数主要影响客户端连接，服务器端主要设置基础参数)
 	case "$VNC_ENCODING" in
 		"tight")
-			VNC_ARGS="$VNC_ARGS -PreferredEncoding tight"
-			VNC_ARGS="$VNC_ARGS -QualityLevel $VNC_QUALITY"
-			VNC_ARGS="$VNC_ARGS -CompressLevel $VNC_COMPRESS"
+			# TigerVNC 服务器端不直接设置编码，这些参数由客户端协商
+			echo "VNC: 推荐客户端使用 Tight 编码"
 			;;
 		"zrle")
-			VNC_ARGS="$VNC_ARGS -PreferredEncoding ZRLE"
-			VNC_ARGS="$VNC_ARGS -CompressLevel $VNC_COMPRESS"
+			echo "VNC: 推荐客户端使用 ZRLE 编码"
 			;;
 		"hextile")
-			VNC_ARGS="$VNC_ARGS -PreferredEncoding hextile"
+			echo "VNC: 推荐客户端使用 Hextile 编码"
 			;;
 		"raw")
-			VNC_ARGS="$VNC_ARGS -PreferredEncoding raw"
+			echo "VNC: 推荐客户端使用 Raw 编码"
 			;;
 	esac
 
