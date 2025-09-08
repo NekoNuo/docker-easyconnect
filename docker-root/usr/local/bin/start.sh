@@ -148,9 +148,31 @@ init_vpn_config() {
 }
 
 start_tigervncserver() {
-	# $PASSWORD 不为空时，更新 vnc 密码
-	[ -e ~/.vnc/passwd ] || (mkdir -p ~/.vnc && (echo password | tigervncpasswd -f > ~/.vnc/passwd))
-	[ -n "$PASSWORD" ] && printf %s "$PASSWORD" | tigervncpasswd -f > ~/.vnc/passwd
+	# 确保必要的目录和文件存在
+	mkdir -p ~/.vnc
+	mkdir -p /tmp
+
+	# 创建 X11 认证文件
+	touch ~/.Xauthority
+	chmod 600 ~/.Xauthority
+
+	# 设置 VNC 密码
+	if [ -n "$PASSWORD" ]; then
+		echo "VNC: 设置 VNC 密码"
+		printf %s "$PASSWORD" | tigervncpasswd -f > ~/.vnc/passwd
+		chmod 600 ~/.vnc/passwd
+	else
+		# 如果没有设置密码，使用默认密码
+		echo "VNC: 使用默认密码"
+		echo "password" | tigervncpasswd -f > ~/.vnc/passwd
+		chmod 600 ~/.vnc/passwd
+	fi
+
+	# 验证密码文件是否创建成功
+	if [ ! -f ~/.vnc/passwd ]; then
+		echo "VNC: 错误 - 无法创建 VNC 密码文件"
+		return 1
+	fi
 
 	VNC_SIZE="${VNC_SIZE:-1110x620}"
 
@@ -278,29 +300,77 @@ start_tigervncserver() {
 
 	echo "VNC: 启动参数 - 编码:$VNC_ENCODING 质量:$VNC_QUALITY 压缩:$VNC_COMPRESS 帧率:${VNC_FRAMERATE}fps 深度:${VNC_DEPTH}bit"
 
-	# 确保 VNC 目录存在
-	mkdir -p ~/.vnc
-
 	# 清理可能存在的旧 VNC 会话
+	echo "VNC: 清理旧的 VNC 会话..."
 	vncserver -kill "$DISPLAY" 2>/dev/null || true
+	pkill -f "Xtigervnc.*${DISPLAY}" 2>/dev/null || true
 
 	# 等待端口释放
-	sleep 1
+	sleep 2
+
+	# 设置 X11 环境变量
+	export XAUTHORITY=~/.Xauthority
+	export XDG_RUNTIME_DIR=/tmp
+
+	# 创建 VNC 启动脚本
+	cat > ~/.vnc/xstartup << 'EOF'
+#!/bin/bash
+# VNC 桌面启动脚本
+export XDG_RUNTIME_DIR=/tmp
+export XAUTHORITY=~/.Xauthority
+
+# 启动窗口管理器
+flwm &
+
+# 保持脚本运行
+exec /bin/bash
+EOF
+	chmod +x ~/.vnc/xstartup
 
 	open_port 5901
 
 	# 启动 TigerVNC 服务器
 	echo "VNC: 启动 TigerVNC 服务器 (显示: $DISPLAY)"
-	tigervncserver "$DISPLAY" $VNC_ARGS
+	echo "VNC: 启动参数: $VNC_ARGS"
+
+	# 使用更详细的启动方式
+	if tigervncserver "$DISPLAY" $VNC_ARGS; then
+		echo "VNC: TigerVNC 服务器启动命令执行成功"
+	else
+		echo "VNC: TigerVNC 服务器启动命令失败"
+		return 1
+	fi
 
 	# 检查 VNC 服务器是否成功启动
-	sleep 2
-	if ! pgrep -f "tigervnc" >/dev/null; then
-		echo "VNC: 警告 - TigerVNC 服务器可能启动失败"
-		echo "VNC: 尝试查看错误日志..."
-		[ -f ~/.vnc/*${DISPLAY}.log ] && tail -10 ~/.vnc/*${DISPLAY}.log || true
+	sleep 3
+	if pgrep -f "Xtigervnc.*${DISPLAY}" >/dev/null; then
+		echo "VNC: ✅ TigerVNC 服务器启动成功"
+		echo "VNC: 进程信息:"
+		pgrep -f "Xtigervnc.*${DISPLAY}" | head -1 | xargs ps -p
 	else
-		echo "VNC: TigerVNC 服务器启动成功"
+		echo "VNC: ❌ TigerVNC 服务器启动失败"
+		echo "VNC: 查看错误日志:"
+
+		# 查看 VNC 日志
+		for logfile in ~/.vnc/*${DISPLAY}.log ~/.vnc/$(hostname)${DISPLAY}.log; do
+			if [ -f "$logfile" ]; then
+				echo "=== $logfile ==="
+				tail -20 "$logfile"
+				echo ""
+			fi
+		done
+
+		# 尝试手动启动进行调试
+		echo "VNC: 尝试手动启动进行调试..."
+		Xtigervnc "$DISPLAY" -geometry "$VNC_SIZE" -depth "$VNC_DEPTH" -rfbauth ~/.vnc/passwd -localhost=0 &
+		sleep 2
+
+		if pgrep -f "Xtigervnc.*${DISPLAY}" >/dev/null; then
+			echo "VNC: 手动启动成功"
+		else
+			echo "VNC: 手动启动也失败"
+			return 1
+		fi
 	fi
 	stalonetray -f 0 2> /dev/null &
 

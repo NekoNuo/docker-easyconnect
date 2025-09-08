@@ -23,17 +23,19 @@ get_vnc_stats() {
     local display="$1"
     local port=$((5900 + ${display#:}))
     
-    # 检查 VNC 服务是否运行
-    if ! pgrep -f "Xvnc.*$display" > /dev/null; then
+    # 检查 VNC 服务是否运行 (支持 TigerVNC)
+    local vnc_pid=""
+    if pgrep -f "Xtigervnc.*$display" > /dev/null; then
+        vnc_pid=$(pgrep -f "Xtigervnc.*$display" | head -1)
+    elif pgrep -f "Xvnc.*$display" > /dev/null; then
+        vnc_pid=$(pgrep -f "Xvnc.*$display" | head -1)
+    else
         echo "VNC 服务未运行在显示器 $display"
         return 1
     fi
-    
+
     # 获取连接数
-    local connections=$(netstat -an | grep ":$port " | grep ESTABLISHED | wc -l)
-    
-    # 获取进程信息
-    local vnc_pid=$(pgrep -f "Xvnc.*$display" | head -1)
+    local connections=$(netstat -an 2>/dev/null | grep ":$port " | grep ESTABLISHED | wc -l)
     local cpu_usage=0
     local mem_usage=0
     local uptime=0

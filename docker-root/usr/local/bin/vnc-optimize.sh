@@ -195,7 +195,9 @@ EOF
 # 应用配置到运行中的 VNC 服务
 apply_config_to_running_vnc() {
     local vnc_pid
-    vnc_pid=$(pgrep -f "Xvnc.*$VNC_DISPLAY" | head -1)
+    # 支持 TigerVNC 和传统 VNC
+    vnc_pid=$(pgrep -f "Xtigervnc.*$VNC_DISPLAY" | head -1)
+    [ -z "$vnc_pid" ] && vnc_pid=$(pgrep -f "Xvnc.*$VNC_DISPLAY" | head -1)
     
     if [ -z "$vnc_pid" ]; then
         log_warn "VNC 服务未运行，无法应用动态配置"
