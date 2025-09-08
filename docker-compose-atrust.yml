@@ -1,0 +1,148 @@
+version: '3.8'
+
+services:
+  atrust:
+    image: your-dockerhub-username/docker-easyconnect-atrust:atrust-amd64
+    container_name: atrust-vnc
+    restart: unless-stopped
+    
+    # 网络配置
+    devices:
+      - /dev/net/tun
+    cap_add: 
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.conf.default.route_localnet=1
+    
+    # 端口映射
+    ports:
+      - "127.0.0.1:5901:5901"   # VNC 端口
+      - "127.0.0.1:1080:1080"   # SOCKS5 代理
+      - "127.0.0.1:8888:8888"   # HTTP 代理
+      - "127.0.0.1:54631:54631" # aTrust Web 登录端口
+      - "127.0.0.1:8080:8080"   # noVNC Web 界面 (可选)
+    
+    # 数据持久化
+    volumes:
+      - atrust-data:/root
+      - atrust-logs:/usr/share/sangfor/aTrust/resources/logs/
+    
+    # 环境变量配置
+    environment:
+      # 基本配置
+      - PASSWORD=your_vnc_password_here    # VNC 密码，请修改
+      - URLWIN=1                           # 启用 URL 弹窗
+      
+      # VNC 性能优化配置
+      - VNC_AUTO_LOWRES=1                  # 启用低资源自动检测
+      - VNC_AUTO_OPTIMIZE=1                # 启用自动优化
+      - VNC_NETWORK_MODE=balanced          # 网络模式: fast/balanced/slow/minimal
+      - VNC_ENCODING=tight                 # 编码格式: tight/zrle/hextile/raw
+      - VNC_QUALITY=6                      # 压缩质量: 0-9 (0=最高压缩, 9=最高质量)
+      - VNC_COMPRESS=6                     # 压缩级别: 0-9 (0=无压缩, 9=最高压缩)
+      - VNC_FRAMERATE=30                   # 帧率限制: 1-60 fps
+      - VNC_DEPTH=24                       # 色彩深度: 8/16/24/32 bit
+      - VNC_SIZE=1110x620                  # VNC 分辨率
+      - VNC_MONITOR_INTERVAL=30            # 性能监控间隔(秒)
+      
+      # noVNC Web 界面 (可选)
+      - USE_NOVNC=1                        # 启用 noVNC Web 界面
+      
+      # 网络保活
+      - PING_INTERVAL=1800                 # ping 间隔(秒)
+      # - PING_ADDR=8.8.8.8                # ping 地址 (可选)
+      # - PING_ADDR_URL=https://www.baidu.com  # ping URL (可选)
+      
+      # 代理认证 (可选)
+      # - SOCKS_USER=your_socks_username
+      # - SOCKS_PASSWD=your_socks_password
+      
+      # 剪贴板内容 (可选)
+      # - CLIP_TEXT=your_clipboard_text
+    
+    # 资源限制 (根据服务器配置调整)
+    deploy:
+      resources:
+        limits:
+          memory: 1G        # 内存限制
+          cpus: '1.0'       # CPU 限制
+        reservations:
+          memory: 256M      # 内存预留
+          cpus: '0.25'      # CPU 预留
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "aTrustAgent"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # 低配置服务器版本 (可选)
+  atrust-lowres:
+    image: your-dockerhub-username/docker-easyconnect-atrust:atrust-amd64
+    container_name: atrust-vnc-lowres
+    restart: unless-stopped
+    profiles: ["lowres"]  # 使用 --profile lowres 启动
+    
+    devices:
+      - /dev/net/tun
+    cap_add: 
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.conf.default.route_localnet=1
+    
+    ports:
+      - "127.0.0.1:5902:5901"   # 不同的 VNC 端口避免冲突
+      - "127.0.0.1:1081:1080"   # 不同的 SOCKS5 端口
+      - "127.0.0.1:8889:8888"   # 不同的 HTTP 代理端口
+      - "127.0.0.1:54632:54631" # 不同的 Web 登录端口
+    
+    volumes:
+      - atrust-lowres-data:/root
+    
+    environment:
+      - PASSWORD=your_vnc_password_here
+      - URLWIN=1
+      
+      # 低资源优化配置
+      - VNC_AUTO_LOWRES=1
+      - VNC_NETWORK_MODE=minimal
+      - VNC_ENCODING=tight
+      - VNC_QUALITY=1                      # 最低质量
+      - VNC_COMPRESS=9                     # 最高压缩
+      - VNC_FRAMERATE=8                    # 低帧率
+      - VNC_DEPTH=8                        # 低色彩深度
+      - VNC_SIZE=640x480                   # 小分辨率
+      - VNC_DEFERTIME=200                  # 高延迟
+    
+    # 严格的资源限制
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+
+# 数据卷定义
+volumes:
+  atrust-data:
+    driver: local
+  atrust-logs:
+    driver: local
+  atrust-lowres-data:
+    driver: local
+
+# 网络定义 (可选)
+networks:
+  default:
+    name: atrust-network

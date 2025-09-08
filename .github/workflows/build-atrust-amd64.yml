@@ -1,0 +1,126 @@
+name: Build aTrust AMD64 VNC Image
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'Dockerfile'
+      - 'docker-root/**'
+      - 'build-scripts/**'
+      - '.github/workflows/build-atrust-amd64.yml'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      atrust_version:
+        description: 'aTrust version to build'
+        required: false
+        default: 'latest'
+        type: string
+      push_to_registry:
+        description: 'Push to Docker registry'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: your-dockerhub-username/docker-easyconnect-atrust
+  PLATFORM: linux/amd64
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=atrust-amd64,enable={{is_default_branch}}
+          type=raw,value=atrust-vnc-amd64,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        platforms: ${{ env.PLATFORM }}
+        push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry != 'false') }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        build-args: |
+          VPN_TYPE=ATRUST
+          EC_HOST=amd64
+          MIRROR_URL=http://deb.debian.org/debian/
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Test image
+      if: success()
+      run: |
+        echo "Testing built image..."
+        docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:atrust-amd64 --version || true
+        docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:atrust-amd64 vnc-lowres-optimizer.sh status || true
+
+    - name: Image scan
+      if: success()
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:atrust-amd64
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+      continue-on-error: true
+
+    - name: Upload Trivy scan results
+      if: success()
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+      continue-on-error: true
+
+    - name: Generate build summary
+      if: always()
+      run: |
+        echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Platform**: ${{ env.PLATFORM }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **VPN Type**: aTrust" >> $GITHUB_STEP_SUMMARY
+        echo "- **Architecture**: AMD64" >> $GITHUB_STEP_SUMMARY
+        echo "- **Image**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Usage Example" >> $GITHUB_STEP_SUMMARY
+        echo '```bash' >> $GITHUB_STEP_SUMMARY
+        echo "docker run --rm --device /dev/net/tun --cap-add NET_ADMIN -ti \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -e PASSWORD=your_password \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -e VNC_AUTO_LOWRES=1 \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -p 127.0.0.1:5901:5901 \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -p 127.0.0.1:1080:1080 \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -p 127.0.0.1:8888:8888 \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -p 127.0.0.1:54631:54631 \\" >> $GITHUB_STEP_SUMMARY
+        echo "  --sysctl net.ipv4.conf.default.route_localnet=1 \\" >> $GITHUB_STEP_SUMMARY
+        echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:atrust-amd64" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY

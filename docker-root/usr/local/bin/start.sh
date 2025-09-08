@@ -308,6 +308,17 @@ start_tigervncserver() {
 		vnc-performance-monitor.sh monitor &
 	fi
 
+	# 启动低资源优化器 (如果启用)
+	if [ "$VNC_AUTO_LOWRES" = "1" ]; then
+		echo "启动 VNC 低资源优化器..."
+		vnc-lowres-optimizer.sh detect
+		# 应用低资源配置
+		if [ -f "/tmp/vnc-lowres-config" ]; then
+			source /tmp/vnc-lowres-config
+			echo "已应用低资源优化配置"
+		fi
+	fi
+
 }
 
 keep_pinging() {

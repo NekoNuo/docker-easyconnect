@@ -39,6 +39,7 @@ COPY --from=hagb/docker-easyconnect:build /results/fake-hwaddr/ /results/fake-ge
 # 设置 VNC 优化脚本权限
 RUN chmod +x /usr/local/bin/vnc-performance-monitor.sh && \
     chmod +x /usr/local/bin/vnc-optimize.sh && \
+    chmod +x /usr/local/bin/vnc-lowres-optimizer.sh && \
     mkdir -p /etc/tigervnc /var/log && \
     touch /var/log/vnc-performance.log
 
