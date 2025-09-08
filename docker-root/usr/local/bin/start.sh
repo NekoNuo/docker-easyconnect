@@ -344,21 +344,13 @@ EOF
 	DISPLAY_NUM=${DISPLAY#:}
 	VNC_PORT=$((5900 + DISPLAY_NUM))
 
-	# 直接启动 Xtigervnc
+	# 使用最简单的 Xtigervnc 启动方式
 	Xtigervnc "$DISPLAY" \
 		-geometry "$VNC_SIZE" \
 		-depth "$VNC_DEPTH" \
 		-rfbauth ~/.vnc/passwd \
 		-rfbport "$VNC_PORT" \
-		-localhost=0 \
-		-desktop "aTrust VNC Desktop" \
-		-xstartup ~/.vnc/xstartup \
-		-SecurityTypes VncAuth \
-		-AlwaysShared \
-		-AcceptKeyEvents \
-		-AcceptPointerEvents \
-		-AcceptCutText \
-		-SendCutText &
+		-desktop "aTrust VNC Desktop" &
 
 	VNC_PID=$!
 	echo "VNC: Xtigervnc 启动，PID: $VNC_PID"
@@ -367,6 +359,11 @@ EOF
 	sleep 3
 	if kill -0 "$VNC_PID" 2>/dev/null && pgrep -f "Xtigervnc.*${DISPLAY}" >/dev/null; then
 		echo "VNC: ✅ TigerVNC 服务器启动成功 (PID: $VNC_PID)"
+
+		# 启动窗口管理器 (因为 Xtigervnc 不支持 -xstartup)
+		sleep 1
+		DISPLAY="$DISPLAY" flwm &
+		echo "VNC: 窗口管理器 flwm 已启动"
 	else
 		echo "VNC: ❌ TigerVNC 服务器启动失败"
 
