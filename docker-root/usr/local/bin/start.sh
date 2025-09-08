@@ -336,48 +336,49 @@ EOF
 
 	open_port 5901
 
-	# 启动 TigerVNC 服务器
+	# 启动 TigerVNC 服务器 (直接使用 Xtigervnc，避免包装器问题)
 	echo "VNC: 启动 TigerVNC 服务器 (显示: $DISPLAY)"
-	echo "VNC: 启动参数: $VNC_ARGS"
+	echo "VNC: 使用直接启动方式避免包装器问题"
 
-	# 使用更详细的启动方式
-	if tigervncserver "$DISPLAY" $VNC_ARGS; then
-		echo "VNC: TigerVNC 服务器启动命令执行成功"
-	else
-		echo "VNC: TigerVNC 服务器启动命令失败"
-		return 1
-	fi
+	# 计算显示端口
+	DISPLAY_NUM=${DISPLAY#:}
+	VNC_PORT=$((5900 + DISPLAY_NUM))
+
+	# 直接启动 Xtigervnc
+	Xtigervnc "$DISPLAY" \
+		-geometry "$VNC_SIZE" \
+		-depth "$VNC_DEPTH" \
+		-rfbauth ~/.vnc/passwd \
+		-rfbport "$VNC_PORT" \
+		-localhost=0 \
+		-desktop "aTrust VNC Desktop" \
+		-xstartup ~/.vnc/xstartup \
+		-SecurityTypes VncAuth \
+		-AlwaysShared \
+		-AcceptKeyEvents \
+		-AcceptPointerEvents \
+		-AcceptCutText \
+		-SendCutText &
+
+	VNC_PID=$!
+	echo "VNC: Xtigervnc 启动，PID: $VNC_PID"
 
 	# 检查 VNC 服务器是否成功启动
 	sleep 3
-	if pgrep -f "Xtigervnc.*${DISPLAY}" >/dev/null; then
-		echo "VNC: ✅ TigerVNC 服务器启动成功"
-		echo "VNC: 进程信息:"
-		pgrep -f "Xtigervnc.*${DISPLAY}" | head -1 | xargs ps -p
+	if kill -0 "$VNC_PID" 2>/dev/null && pgrep -f "Xtigervnc.*${DISPLAY}" >/dev/null; then
+		echo "VNC: ✅ TigerVNC 服务器启动成功 (PID: $VNC_PID)"
 	else
 		echo "VNC: ❌ TigerVNC 服务器启动失败"
-		echo "VNC: 查看错误日志:"
 
-		# 查看 VNC 日志
+		# 查看可能的错误日志
 		for logfile in ~/.vnc/*${DISPLAY}.log ~/.vnc/$(hostname)${DISPLAY}.log; do
 			if [ -f "$logfile" ]; then
-				echo "=== $logfile ==="
-				tail -20 "$logfile"
-				echo ""
+				echo "=== VNC 日志: $logfile ==="
+				tail -10 "$logfile"
 			fi
 		done
 
-		# 尝试手动启动进行调试
-		echo "VNC: 尝试手动启动进行调试..."
-		Xtigervnc "$DISPLAY" -geometry "$VNC_SIZE" -depth "$VNC_DEPTH" -rfbauth ~/.vnc/passwd -localhost=0 &
-		sleep 2
-
-		if pgrep -f "Xtigervnc.*${DISPLAY}" >/dev/null; then
-			echo "VNC: 手动启动成功"
-		else
-			echo "VNC: 手动启动也失败"
-			return 1
-		fi
+		return 1
 	fi
 	stalonetray -f 0 2> /dev/null &
 
