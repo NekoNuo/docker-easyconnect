@@ -53,8 +53,20 @@ env:
 - **VPN 类型**: aTrust
 - **架构**: AMD64
 - **包含 VNC**: 是
+- **多阶段构建**: 是（自动构建依赖组件）
 
-## 5. 生成的镜像标签
+构建过程：
+1. **Build Stage**: 自动构建 fake-hwaddr、fake-getlogin、tinyproxy、noVNC 等组件
+2. **Main Stage**: 安装 aTrust 并配置 VNC 优化功能
+
+## 5. aTrust 版本配置
+
+工作流会自动读取 `build-args/atrust-amd64.txt` 文件中的构建参数。
+如果文件不存在，将使用默认的 aTrust 下载地址。
+
+当前默认版本：aTrust 2.4.10.50
+
+## 6. 生成的镜像标签
 
 工作流会自动生成以下标签：
 - `latest` (仅在默认分支)
@@ -62,7 +74,7 @@ env:
 - `atrust-vnc-amd64` (仅在默认分支)
 - `分支名-SHA` (所有分支)
 
-## 6. 使用示例
+## 7. 使用示例
 
 构建完成后，您可以这样使用镜像：
 
@@ -91,14 +103,14 @@ docker run --rm --device /dev/net/tun --cap-add NET_ADMIN -ti \
   your-dockerhub-username/docker-easyconnect-atrust:atrust-amd64
 ```
 
-## 7. 监控构建
+## 8. 监控构建
 
 - 构建状态可在 `Actions` 选项卡中查看
 - 每次构建都会生成详细的构建摘要
 - 包含安全扫描结果（使用 Trivy）
 - 自动缓存以加速后续构建
 
-## 8. 故障排除
+## 9. 故障排除
 
 如果构建失败，请检查：
 1. Secrets 是否正确设置
@@ -106,7 +118,7 @@ docker run --rm --device /dev/net/tun --cap-add NET_ADMIN -ti \
 3. 镜像名称是否正确
 4. 网络连接是否正常
 
-## 9. 自定义构建
+## 10. 自定义构建
 
 您可以通过 `workflow_dispatch` 手动触发构建：
 1. 进入 `Actions` 选项卡

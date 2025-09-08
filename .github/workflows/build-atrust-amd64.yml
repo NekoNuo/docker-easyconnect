@@ -63,7 +63,21 @@ jobs:
           type=raw,value=atrust-amd64,enable={{is_default_branch}}
           type=raw,value=atrust-vnc-amd64,enable={{is_default_branch}}
 
-    - name: Build and push Docker image
+    - name: Get aTrust build arguments
+      id: build-args
+      run: |
+        if [ -f "build-args/atrust-amd64.txt" ]; then
+          # 读取构建参数文件
+          BUILD_ARGS=$(cat build-args/atrust-amd64.txt | tr '\n' ' ')
+          echo "Found build args: $BUILD_ARGS"
+          # 提取 VPN_URL
+          VPN_URL=$(echo "$BUILD_ARGS" | grep -o 'VPN_URL=[^ ]*' | cut -d'=' -f2)
+          echo "vpn_url=$VPN_URL" >> $GITHUB_OUTPUT
+        else
+          echo "vpn_url=https://atrustcdn.sangfor.com/standard/linux/2.4.10.50/uos/amd64/aTrustInstaller_amd64.deb" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Build and push aTrust image
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -76,6 +90,8 @@ jobs:
           VPN_TYPE=ATRUST
           EC_HOST=amd64
           MIRROR_URL=http://deb.debian.org/debian/
+          VPN_URL=${{ steps.build-args.outputs.vpn_url }}
+          BUILD_ENV=actions
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
