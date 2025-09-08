@@ -1,52 +1,14 @@
 # TigerVNC 服务器默认配置
-# 性能优化配置文件
+# 简化配置，只保留必要设置
 
 # 基础显示设置
 $geometry = "1110x620";
 $depth = 24;
-$pixelformat = "";
-
-# 性能优化设置
-$deferTime = 1;           # 延迟更新时间 (毫秒)
-$maxIdleTime = 0;         # 最大空闲时间 (0=无限制)
-$maxDisconnectionTime = 3600; # 最大断开连接时间 (秒)
-$maxConnectionTime = 0;   # 最大连接时间 (0=无限制)
-
-# 编码和压缩设置
-$preferredEncoding = "tight";
-$qualityLevel = 6;        # JPEG 质量级别 (0-9)
-$compressLevel = 6;       # 压缩级别 (0-9)
-
-# 网络优化
-$sendCutText = 1;         # 发送剪贴板文本
-$acceptCutText = 1;       # 接受剪贴板文本
-$sendPrimary = 0;         # 发送主选择
-$acceptPrimary = 0;       # 接受主选择
 
 # 安全设置
 $localhost = 0;           # 允许远程连接
-$interface = "";          # 绑定接口 (空=所有接口)
-$rfbauth = 1;             # 启用 RFB 认证
-$pam = 0;                 # 禁用 PAM 认证
-
-# 日志设置
-$log = "*:stderr:30";     # 日志级别和输出
 
 # 桌面设置
-$desktop = "EasyConnect VNC Desktop";
-$wmDecoration = "8x64";   # 窗口管理器装饰大小
-
-# 鼠标和键盘设置
-$acceptPointerEvents = 1; # 接受鼠标事件
-$acceptKeyEvents = 1;     # 接受键盘事件
-
-# 帧缓冲更新优化
-$compareFB = 2;           # 帧缓冲比较模式 (0=关闭, 1=像素, 2=区域)
-$economicTranslate = 1;   # 经济模式转换
-$rawDelay = 5;            # Raw 编码延迟 (毫秒)
-$copyRectDelay = 10;      # CopyRect 延迟 (毫秒)
-
-# 线程设置
-$rfbNumThreads = 0;       # RFB 线程数 (0=自动)
+$desktop = "aTrust VNC Desktop";
 
 1; # 配置文件必须返回真值

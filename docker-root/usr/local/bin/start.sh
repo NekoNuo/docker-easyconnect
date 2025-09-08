@@ -278,8 +278,30 @@ start_tigervncserver() {
 
 	echo "VNC: 启动参数 - 编码:$VNC_ENCODING 质量:$VNC_QUALITY 压缩:$VNC_COMPRESS 帧率:${VNC_FRAMERATE}fps 深度:${VNC_DEPTH}bit"
 
+	# 确保 VNC 目录存在
+	mkdir -p ~/.vnc
+
+	# 清理可能存在的旧 VNC 会话
+	vncserver -kill "$DISPLAY" 2>/dev/null || true
+
+	# 等待端口释放
+	sleep 1
+
 	open_port 5901
+
+	# 启动 TigerVNC 服务器
+	echo "VNC: 启动 TigerVNC 服务器 (显示: $DISPLAY)"
 	tigervncserver "$DISPLAY" $VNC_ARGS
+
+	# 检查 VNC 服务器是否成功启动
+	sleep 2
+	if ! pgrep -f "tigervnc" >/dev/null; then
+		echo "VNC: 警告 - TigerVNC 服务器可能启动失败"
+		echo "VNC: 尝试查看错误日志..."
+		[ -f ~/.vnc/*${DISPLAY}.log ] && tail -10 ~/.vnc/*${DISPLAY}.log || true
+	else
+		echo "VNC: TigerVNC 服务器启动成功"
+	fi
 	stalonetray -f 0 2> /dev/null &
 
 	if [ -n "$ECPASSWORD" ]; then
