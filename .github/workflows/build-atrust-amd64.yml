@@ -1,19 +1,17 @@
-name: Build aTrust AMD64 VNC Image
+# ⚠️ DEPRECATED: Use build-flexible.yml instead
+# This workflow is kept for backward compatibility
+# For new builds, please use the flexible build workflow with these parameters:
+# - Product: aTrust
+# - Architecture: amd64
+# - Version: your desired version
+
+name: Build aTrust AMD64 VNC Image (Legacy)
 
 on:
-  push:
-    branches: [ main, master ]
-    paths:
-      - 'Dockerfile'
-      - 'docker-root/**'
-      - 'build-scripts/**'
-      - '.github/workflows/build-atrust-amd64.yml'
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
     inputs:
       atrust_version:
-        description: 'aTrust version to build'
+        description: 'aTrust version to build (Use build-flexible.yml for more options)'
         required: false
         default: 'latest'
         type: string

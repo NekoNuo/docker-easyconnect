@@ -1,0 +1,310 @@
+name: Flexible Build - EasyConnect & aTrust
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'Dockerfile'
+      - 'docker-root/**'
+      - 'build-scripts/**'
+      - 'build-args/**'
+      - '.github/workflows/build-flexible.yml'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      product_type:
+        description: 'Product to build'
+        required: true
+        default: 'EasyConnect'
+        type: choice
+        options:
+          - 'EasyConnect'
+          - 'aTrust'
+      version:
+        description: 'Version to build'
+        required: true
+        default: 'latest'
+        type: choice
+        options:
+          - 'latest'
+          - '7.6.3'
+          - '7.6.7'
+          - '2.2.16'
+          - '2.3.10.65'
+          - '2.3.10_sp3'
+          - '2.3.10_sp4'
+          - '2.4.10.50'
+      architecture:
+        description: 'Architecture to build'
+        required: true
+        default: 'amd64'
+        type: choice
+        options:
+          - 'amd64'
+          - 'arm64'
+          - 'i386'
+          - 'mips64le'
+          - 'all'
+      push_to_registry:
+        description: 'Push to Docker registry'
+        required: false
+        default: true
+        type: boolean
+      run_tests:
+        description: 'Run tests after build'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  REGISTRY: docker.io
+  BASE_IMAGE_NAME: gys619/docker-easyconnect
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.setup-matrix.outputs.matrix }}
+      image_name: ${{ steps.setup-vars.outputs.image_name }}
+      product_type: ${{ steps.setup-vars.outputs.product_type }}
+      version: ${{ steps.setup-vars.outputs.version }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup variables
+      id: setup-vars
+      run: |
+        # 设置产品类型
+        if [ "${{ github.event.inputs.product_type }}" = "aTrust" ]; then
+          PRODUCT_TYPE="ATRUST"
+          IMAGE_SUFFIX="-atrust"
+        else
+          PRODUCT_TYPE="EASYCONNECT"
+          IMAGE_SUFFIX=""
+        fi
+        
+        # 设置版本
+        VERSION="${{ github.event.inputs.version }}"
+        if [ "$VERSION" = "latest" ]; then
+          if [ "$PRODUCT_TYPE" = "ATRUST" ]; then
+            VERSION="2.4.10.50"
+          else
+            VERSION="7.6.7"
+          fi
+        fi
+        
+        # 设置镜像名称
+        IMAGE_NAME="${{ env.BASE_IMAGE_NAME }}${IMAGE_SUFFIX}"
+        
+        echo "product_type=$PRODUCT_TYPE" >> $GITHUB_OUTPUT
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+
+    - name: Setup build matrix
+      id: setup-matrix
+      run: |
+        ARCHITECTURE="${{ github.event.inputs.architecture }}"
+        
+        if [ "$ARCHITECTURE" = "all" ]; then
+          # 检查支持的架构
+          PRODUCT_TYPE="${{ steps.setup-vars.outputs.product_type }}"
+          VERSION="${{ steps.setup-vars.outputs.version }}"
+          
+          ARCHS=()
+          for arch in amd64 arm64 i386 mips64le; do
+            # 检查构建参数文件是否存在
+            if [ "$PRODUCT_TYPE" = "ATRUST" ]; then
+              BUILD_ARGS_FILE="build-args/atrust-${VERSION}-${arch}.txt"
+              FALLBACK_FILE="build-args/atrust-${arch}.txt"
+            else
+              BUILD_ARGS_FILE="build-args/${VERSION}-${arch}.txt"
+              FALLBACK_FILE="build-args/easyconnect-${arch}.txt"
+            fi
+            
+            if [ -f "$BUILD_ARGS_FILE" ] || [ -f "$FALLBACK_FILE" ]; then
+              ARCHS+=("$arch")
+            fi
+          done
+          
+          # 生成 matrix JSON
+          MATRIX_JSON=$(printf '%s\n' "${ARCHS[@]}" | jq -R . | jq -s '{architecture: .}')
+        else
+          MATRIX_JSON="{\"architecture\": [\"$ARCHITECTURE\"]}"
+        fi
+        
+        echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+        echo "Generated matrix: $MATRIX_JSON"
+
+  build:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      fail-fast: false
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      if: github.event_name != 'pull_request' && (github.event.inputs.push_to_registry != 'false')
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Setup platform mapping
+      id: platform
+      run: |
+        case "${{ matrix.architecture }}" in
+          amd64)   echo "platform=linux/amd64" >> $GITHUB_OUTPUT ;;
+          arm64)   echo "platform=linux/arm64" >> $GITHUB_OUTPUT ;;
+          i386)    echo "platform=linux/386" >> $GITHUB_OUTPUT ;;
+          mips64le) echo "platform=linux/mips64le" >> $GITHUB_OUTPUT ;;
+          *)       echo "platform=linux/${{ matrix.architecture }}" >> $GITHUB_OUTPUT ;;
+        esac
+
+    - name: Get build arguments
+      id: build-args
+      run: |
+        PRODUCT_TYPE="${{ needs.setup.outputs.product_type }}"
+        VERSION="${{ needs.setup.outputs.version }}"
+        ARCH="${{ matrix.architecture }}"
+        
+        # 尝试查找构建参数文件
+        if [ "$PRODUCT_TYPE" = "ATRUST" ]; then
+          BUILD_ARGS_FILE="build-args/atrust-${VERSION}-${ARCH}.txt"
+          FALLBACK_FILE="build-args/atrust-${ARCH}.txt"
+          DEFAULT_VPN_TYPE="ATRUST"
+        else
+          BUILD_ARGS_FILE="build-args/${VERSION}-${ARCH}.txt"
+          FALLBACK_FILE="build-args/easyconnect-${ARCH}.txt"
+          DEFAULT_VPN_TYPE="EASYCONNECT"
+        fi
+        
+        if [ -f "$BUILD_ARGS_FILE" ]; then
+          BUILD_ARGS=$(cat "$BUILD_ARGS_FILE" | tr '\n' ' ')
+          echo "Using build args from: $BUILD_ARGS_FILE"
+        elif [ -f "$FALLBACK_FILE" ]; then
+          BUILD_ARGS=$(cat "$FALLBACK_FILE" | tr '\n' ' ')
+          echo "Using build args from: $FALLBACK_FILE"
+        else
+          echo "No build args file found, using defaults"
+          BUILD_ARGS=""
+        fi
+        
+        # 提取 VPN_URL
+        if [ -n "$BUILD_ARGS" ]; then
+          VPN_URL=$(echo "$BUILD_ARGS" | grep -o 'VPN_URL=[^ ]*' | cut -d'=' -f2)
+        fi
+        
+        # 设置默认值
+        if [ -z "$VPN_URL" ]; then
+          if [ "$PRODUCT_TYPE" = "ATRUST" ]; then
+            VPN_URL="https://atrustcdn.sangfor.com/standard/linux/2.4.10.50/uos/${ARCH}/aTrustInstaller_${ARCH}.deb"
+          else
+            VPN_URL="https://download.sangfor.com.cn/download/product/sslvpn/pkg/linux_767/EasyConnect_x64_7_6_7_3.deb"
+          fi
+        fi
+        
+        echo "vpn_url=$VPN_URL" >> $GITHUB_OUTPUT
+        echo "vpn_type=$DEFAULT_VPN_TYPE" >> $GITHUB_OUTPUT
+        echo "Found VPN_URL: $VPN_URL"
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ needs.setup.outputs.image_name }}
+        tags: |
+          type=ref,event=branch,suffix=-${{ matrix.architecture }}
+          type=ref,event=pr,suffix=-${{ matrix.architecture }}
+          type=sha,prefix={{branch}}-${{ matrix.architecture }}-
+          type=raw,value=latest-${{ matrix.architecture }},enable={{is_default_branch}}
+          type=raw,value=${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
+          type=raw,value=${{ github.event.inputs.product_type }}-${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
+
+    - name: Build and push image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        platforms: ${{ steps.platform.outputs.platform }}
+        push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry != 'false') }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        build-args: |
+          VPN_TYPE=${{ steps.build-args.outputs.vpn_type }}
+          EC_HOST=${{ matrix.architecture }}
+          MIRROR_URL=http://deb.debian.org/debian/
+          VPN_URL=${{ steps.build-args.outputs.vpn_url }}
+          BUILD_ENV=actions
+        cache-from: type=gha,scope=${{ matrix.architecture }}
+        cache-to: type=gha,mode=max,scope=${{ matrix.architecture }}
+
+    - name: Test image
+      if: success() && (github.event.inputs.run_tests != 'false')
+      run: |
+        echo "Testing built image for ${{ matrix.architecture }}..."
+        IMAGE_TAG="${{ env.REGISTRY }}/${{ needs.setup.outputs.image_name }}:${{ needs.setup.outputs.version }}-${{ matrix.architecture }}"
+        
+        # 基础测试
+        docker run --rm $IMAGE_TAG --version || true
+        
+        # VNC 相关测试
+        if [ "${{ steps.build-args.outputs.vpn_type }}" = "ATRUST" ]; then
+          docker run --rm $IMAGE_TAG vnc-lowres-optimizer.sh status || true
+        fi
+
+    - name: Security scan
+      if: success() && (github.event.inputs.run_tests != 'false')
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ needs.setup.outputs.image_name }}:${{ needs.setup.outputs.version }}-${{ matrix.architecture }}
+        format: 'sarif'
+        output: 'trivy-results-${{ matrix.architecture }}.sarif'
+      continue-on-error: true
+
+    - name: Upload security scan results
+      if: success() && (github.event.inputs.run_tests != 'false')
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results-${{ matrix.architecture }}.sarif'
+      continue-on-error: true
+
+  summary:
+    needs: [setup, build]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+    - name: Generate build summary
+      run: |
+        echo "## 🚀 Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+        echo "- **Product**: ${{ github.event.inputs.product_type || 'EasyConnect' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Version**: ${{ needs.setup.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Architecture**: ${{ github.event.inputs.architecture || 'amd64' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Image**: ${{ env.REGISTRY }}/${{ needs.setup.outputs.image_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Usage Example" >> $GITHUB_STEP_SUMMARY
+        echo '```bash' >> $GITHUB_STEP_SUMMARY
+        echo "docker run --rm --device /dev/net/tun --cap-add NET_ADMIN -ti \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -e PASSWORD=your_password \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -e VNC_AUTO_LOWRES=1 \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -p 127.0.0.1:5901:5901 \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -p 127.0.0.1:1080:1080 \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -p 127.0.0.1:8888:8888 \\" >> $GITHUB_STEP_SUMMARY
+        echo "  --sysctl net.ipv4.conf.default.route_localnet=1 \\" >> $GITHUB_STEP_SUMMARY
+        echo "  ${{ env.REGISTRY }}/${{ needs.setup.outputs.image_name }}:${{ needs.setup.outputs.version }}-amd64" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
