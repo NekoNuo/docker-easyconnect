@@ -95,11 +95,13 @@ Push to registry: false
 镜像将使用以下标签格式：
 
 **aTrust 镜像** (仓库: `gys619/docker-easyconnect-atrust`):
+- `latest` ⭐ (仅限 VNC + AMD64 + latest 版本)
 - `atrust-{version}-{architecture}` (例如: `atrust-2.4.10.50-amd64`)
 - `{version}-{architecture}` (例如: `2.4.10.50-amd64`)
 - `latest-{architecture}` (例如: `latest-amd64`)
 
 **EasyConnect VNC 镜像** (仓库: `gys619/docker-easyconnect`):
+- `latest` ⭐ (仅限 VNC + AMD64 + latest 版本)
 - `easyconnect-{version}-{architecture}` (例如: `easyconnect-7.6.7-amd64`)
 - `{version}-{architecture}` (例如: `7.6.7-amd64`)
 - `latest-{architecture}` (例如: `latest-amd64`)
@@ -113,6 +115,14 @@ Push to registry: false
 - `easyconnect-cli-{version}-{architecture}` (例如: `easyconnect-cli-7.6.7-amd64`)
 - `{version}-{architecture}` (例如: `7.6.7-amd64`)
 - `latest-{architecture}` (例如: `latest-amd64`)
+
+**⭐ `latest` 标签规则**：
+- 仅在以下条件同时满足时生成 `latest` 标签：
+  - 版本类型为 `vnc` (带 VNC 服务端)
+  - 架构为 `amd64`
+  - 版本选择为 `latest`
+  - 推送到 main 分支
+- 这确保了 `latest` 标签始终指向最常用的默认配置
 
 #### 构建参数文件
 
@@ -188,6 +198,11 @@ Push to registry: false
 - 选择 `latest` 会自动根据产品类型选择对应的最新版本
 - 也可以直接选择具体版本号进行精确构建
 - 版本列表包含了两个产品的所有版本，选择时请确保版本与产品类型匹配
+
+**`latest` 标签特殊说明**：
+- 当选择 `latest` 版本 + `vnc` 类型 + `amd64` 架构时，会额外生成不带架构后缀的 `latest` 标签
+- 这使得用户可以直接使用 `docker pull gys619/docker-easyconnect-atrust:latest` 获取最常用的默认配置
+- 其他配置组合仍会生成 `latest-{architecture}` 格式的标签
 
 ## 📞 支持
 
