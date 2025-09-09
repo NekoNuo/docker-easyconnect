@@ -91,12 +91,15 @@ COPY ./docker-root /
 
 COPY --from=build /results/fake-hwaddr/ /results/fake-getlogin/ /results/tinyproxy-ws/ /results/novnc/ /
 
-# 设置 VNC 优化脚本权限
+# 设置 VNC 优化脚本权限和内存管理脚本
 RUN chmod +x /usr/local/bin/vnc-performance-monitor.sh && \
     chmod +x /usr/local/bin/vnc-optimize.sh && \
     chmod +x /usr/local/bin/vnc-lowres-optimizer.sh && \
+    chmod +x /usr/local/bin/memory-cleanup.sh && \
+    chmod +x /usr/local/bin/start-optimized.sh && \
     mkdir -p /etc/tigervnc /var/log && \
-    touch /var/log/vnc-performance.log
+    touch /var/log/vnc-performance.log && \
+    touch /var/log/memory-cleanup.log
 
 #ENV TYPE="" PASSWORD="" LOOP=""
 #ENV DISPLAY

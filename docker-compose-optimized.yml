@@ -1,0 +1,137 @@
+version: '3.8'
+
+services:
+  easyconnect-optimized:
+    image: hagb/docker-easyconnect:latest
+    container_name: easyconnect-optimized
+    
+    # 设备和权限
+    devices:
+      - /dev/net/tun
+    cap_add: 
+      - NET_ADMIN
+    
+    # 数据持久化
+    volumes:
+      - ${HOME}/.ecdata:/root
+      - ./logs:/var/log  # 日志目录映射，便于监控
+    
+    # 端口映射
+    ports:
+      - "127.0.0.1:5901:5901"  # VNC
+      - "127.0.0.1:1080:1080"  # SOCKS5
+      - "127.0.0.1:8888:8888"  # HTTP代理
+      - "127.0.0.1:8080:8080"  # noVNC (可选)
+    
+    # 环境变量配置 - 内存优化版
+    environment:
+      # 基本配置
+      - PASSWORD=your_vnc_password_here
+      - URLWIN=1
+      
+      # 内存优化配置
+      - VNC_AUTO_OPTIMIZE=0          # 禁用自动优化以节省内存
+      - VNC_AUTO_LOWRES=0           # 禁用低资源检测
+      - VNC_MONITOR_INTERVAL=600    # 监控间隔增加到10分钟
+      
+      # VNC 性能优化 - 低内存配置
+      - VNC_ENCODING=tight          # 高压缩编码
+      - VNC_QUALITY=2               # 低质量高压缩
+      - VNC_COMPRESS=9              # 最高压缩级别
+      - VNC_FRAMERATE=15            # 降低帧率
+      - VNC_DEPTH=16                # 降低色彩深度
+      - VNC_SIZE=1024x768           # 适中分辨率
+      - VNC_DEFERTIME=50            # 增加延迟时间
+      
+      # 网络保活优化
+      - PING_INTERVAL=3600          # 增加到1小时
+      # - PING_ADDR=8.8.8.8         # 可选
+      # - PING_ADDR_URL=https://www.baidu.com  # 可选
+      
+      # noVNC Web 界面 (可选，消耗额外内存)
+      # - USE_NOVNC=1
+      
+      # 代理认证 (可选)
+      # - SOCKS_USER=your_username
+      # - SOCKS_PASSWD=your_password
+      
+      # 剪贴板内容 (可选)
+      # - CLIP_TEXT=your_clipboard_text
+    
+    # 资源限制 - 严格控制内存使用
+    deploy:
+      resources:
+        limits:
+          memory: 512M              # 严格内存限制
+          cpus: '1.0'               # CPU 限制
+        reservations:
+          memory: 256M              # 内存预留
+          cpus: '0.25'              # CPU 预留
+    
+    # 使用优化版启动脚本
+    command: ["start-optimized.sh"]
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "EasyConnect|aTrust"]
+      interval: 60s                 # 增加检查间隔
+      timeout: 10s
+      retries: 3
+      start_period: 120s            # 增加启动等待时间
+    
+    # 日志配置 - 防止日志文件过大
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"              # 单个日志文件最大5MB
+        max-file: "2"               # 最多保留2个日志文件
+    
+    # 重启策略
+    restart: unless-stopped
+    
+    # 网络配置
+    networks:
+      - easyconnect-net
+
+  # 内存监控服务 (可选)
+  memory-monitor:
+    image: hagb/docker-easyconnect:latest
+    container_name: easyconnect-monitor
+    depends_on:
+      - easyconnect-optimized
+    volumes:
+      - ./logs:/var/log
+      - ./monitoring:/monitoring
+    command: >
+      sh -c "
+        while true; do
+          echo '=== $(date) ===' >> /monitoring/memory-report.log
+          docker exec easyconnect-optimized /usr/local/bin/memory-cleanup.sh report >> /monitoring/memory-report.log 2>&1
+          sleep 300
+        done
+      "
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.1'
+
+networks:
+  easyconnect-net:
+    driver: bridge
+
+# 定期清理任务的 cron 配置示例
+# 在宿主机上添加以下 cron 任务：
+# 
+# # 每小时清理临时文件
+# 0 * * * * docker exec easyconnect-optimized /usr/local/bin/memory-cleanup.sh temp >/dev/null 2>&1
+# 
+# # 每6小时清理日志
+# 0 */6 * * * docker exec easyconnect-optimized /usr/local/bin/memory-cleanup.sh logs >/dev/null 2>&1
+# 
+# # 每天执行完整清理
+# 0 2 * * * docker exec easyconnect-optimized /usr/local/bin/memory-cleanup.sh all >/dev/null 2>&1
+# 
+# # 每周重启容器释放内存
+# 0 3 * * 0 docker restart easyconnect-optimized
