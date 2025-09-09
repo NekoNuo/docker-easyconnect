@@ -16,25 +16,16 @@ on:
       product_type:
         description: 'Product to build'
         required: true
-        default: 'EasyConnect'
+        default: 'aTrust'
         type: choice
         options:
-          - 'EasyConnect'
           - 'aTrust'
+          - 'EasyConnect'
       version:
-        description: 'Version to build'
+        description: 'Version to build (aTrust: 2.2.16, 2.3.10.65, 2.3.10_sp3, 2.3.10_sp4, 2.4.10.50 | EasyConnect: 7.6.3, 7.6.7)'
         required: true
         default: 'latest'
-        type: choice
-        options:
-          - 'latest'
-          - '7.6.3'
-          - '7.6.7'
-          - '2.2.16'
-          - '2.3.10.65'
-          - '2.3.10_sp3'
-          - '2.3.10_sp4'
-          - '2.4.10.50'
+        type: string
       architecture:
         description: 'Architecture to build'
         required: true
@@ -76,28 +67,34 @@ jobs:
     - name: Setup variables
       id: setup-vars
       run: |
-        # 设置产品类型
-        if [ "${{ github.event.inputs.product_type }}" = "aTrust" ]; then
-          PRODUCT_TYPE="ATRUST"
-          IMAGE_SUFFIX="-atrust"
-        else
+        # 设置产品类型 (默认为 aTrust)
+        PRODUCT_INPUT="${{ github.event.inputs.product_type }}"
+        if [ "$PRODUCT_INPUT" = "EasyConnect" ]; then
           PRODUCT_TYPE="EASYCONNECT"
           IMAGE_SUFFIX=""
+        else
+          # 默认为 aTrust
+          PRODUCT_TYPE="ATRUST"
+          IMAGE_SUFFIX="-atrust"
         fi
-        
-        # 设置版本
+
+        # 设置版本 (默认为对应产品的最新版本)
         VERSION="${{ github.event.inputs.version }}"
-        if [ "$VERSION" = "latest" ]; then
+        if [ -z "$VERSION" ] || [ "$VERSION" = "latest" ]; then
           if [ "$PRODUCT_TYPE" = "ATRUST" ]; then
-            VERSION="2.4.10.50"
+            VERSION="2.4.10.50"  # aTrust 最新版本
           else
-            VERSION="7.6.7"
+            VERSION="7.6.7"      # EasyConnect 最新版本
           fi
         fi
-        
+
         # 设置镜像名称
         IMAGE_NAME="${{ env.BASE_IMAGE_NAME }}${IMAGE_SUFFIX}"
-        
+
+        echo "Selected product: $PRODUCT_TYPE"
+        echo "Selected version: $VERSION"
+        echo "Image name: $IMAGE_NAME"
+
         echo "product_type=$PRODUCT_TYPE" >> $GITHUB_OUTPUT
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
@@ -106,12 +103,21 @@ jobs:
       id: setup-matrix
       run: |
         ARCHITECTURE="${{ github.event.inputs.architecture }}"
-        
+
+        # 如果是 workflow_dispatch 但没有指定架构，使用默认值
+        if [ -z "$ARCHITECTURE" ]; then
+          ARCHITECTURE="amd64"
+        fi
+
+        echo "Selected architecture: $ARCHITECTURE"
+
         if [ "$ARCHITECTURE" = "all" ]; then
           # 检查支持的架构
           PRODUCT_TYPE="${{ steps.setup-vars.outputs.product_type }}"
           VERSION="${{ steps.setup-vars.outputs.version }}"
-          
+
+          echo "Checking supported architectures for $PRODUCT_TYPE version $VERSION"
+
           ARCHS=()
           for arch in amd64 arm64 i386 mips64le; do
             # 检查构建参数文件是否存在
@@ -122,18 +128,38 @@ jobs:
               BUILD_ARGS_FILE="build-args/${VERSION}-${arch}.txt"
               FALLBACK_FILE="build-args/easyconnect-${arch}.txt"
             fi
-            
+
+            echo "Checking files: $BUILD_ARGS_FILE, $FALLBACK_FILE"
+
             if [ -f "$BUILD_ARGS_FILE" ] || [ -f "$FALLBACK_FILE" ]; then
               ARCHS+=("$arch")
+              echo "Added architecture: $arch"
+            else
+              echo "Skipped architecture: $arch (no build args file found)"
             fi
           done
-          
+
+          # 确保至少有一个架构
+          if [ ${#ARCHS[@]} -eq 0 ]; then
+            echo "No supported architectures found, using amd64 as fallback"
+            ARCHS=("amd64")
+          fi
+
           # 生成 matrix JSON
           MATRIX_JSON=$(printf '%s\n' "${ARCHS[@]}" | jq -R . | jq -s '{architecture: .}')
         else
-          MATRIX_JSON="{\"architecture\": [\"$ARCHITECTURE\"]}"
+          # 验证单个架构是否有效
+          case "$ARCHITECTURE" in
+            amd64|arm64|i386|mips64le)
+              MATRIX_JSON="{\"architecture\": [\"$ARCHITECTURE\"]}"
+              ;;
+            *)
+              echo "Error: Invalid architecture '$ARCHITECTURE'. Supported: amd64, arm64, i386, mips64le, all"
+              exit 1
+              ;;
+          esac
         fi
-        
+
         echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
         echo "Generated matrix: $MATRIX_JSON"
 
@@ -166,13 +192,26 @@ jobs:
     - name: Setup platform mapping
       id: platform
       run: |
-        case "${{ matrix.architecture }}" in
-          amd64)   echo "platform=linux/amd64" >> $GITHUB_OUTPUT ;;
-          arm64)   echo "platform=linux/arm64" >> $GITHUB_OUTPUT ;;
-          i386)    echo "platform=linux/386" >> $GITHUB_OUTPUT ;;
+        ARCH="${{ matrix.architecture }}"
+        echo "Processing architecture: $ARCH"
+
+        if [ -z "$ARCH" ]; then
+          echo "Error: Architecture is empty"
+          exit 1
+        fi
+
+        case "$ARCH" in
+          amd64)    echo "platform=linux/amd64" >> $GITHUB_OUTPUT ;;
+          arm64)    echo "platform=linux/arm64" >> $GITHUB_OUTPUT ;;
+          i386)     echo "platform=linux/386" >> $GITHUB_OUTPUT ;;
           mips64le) echo "platform=linux/mips64le" >> $GITHUB_OUTPUT ;;
-          *)       echo "platform=linux/${{ matrix.architecture }}" >> $GITHUB_OUTPUT ;;
+          *)
+            echo "Error: Unsupported architecture: $ARCH"
+            exit 1
+            ;;
         esac
+
+        echo "Set platform: $(cat $GITHUB_OUTPUT | grep platform)"
 
     - name: Get build arguments
       id: build-args
