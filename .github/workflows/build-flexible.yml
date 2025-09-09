@@ -35,6 +35,15 @@ on:
           - '2.2.16'
           - '7.6.7'
           - '7.6.3'
+      version_type:
+        description: 'Version type (VNC support level)'
+        required: true
+        default: 'vnc'
+        type: choice
+        options:
+          - 'vnc'
+          - 'vncless'
+          - 'cli'
       architecture:
         description: 'Architecture to build'
         required: true
@@ -69,6 +78,8 @@ jobs:
       image_name: ${{ steps.setup-vars.outputs.image_name }}
       product_type: ${{ steps.setup-vars.outputs.product_type }}
       version: ${{ steps.setup-vars.outputs.version }}
+      version_type: ${{ steps.setup-vars.outputs.version_type }}
+      vpn_type: ${{ steps.setup-vars.outputs.vpn_type }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -97,15 +108,49 @@ jobs:
           fi
         fi
 
-        # 设置镜像名称
-        IMAGE_NAME="${{ env.BASE_IMAGE_NAME }}${IMAGE_SUFFIX}"
+        # 设置版本类型 (默认为 vnc)
+        VERSION_TYPE="${{ github.event.inputs.version_type }}"
+        if [ -z "$VERSION_TYPE" ]; then
+          VERSION_TYPE="vnc"  # 默认为带 VNC 的版本
+        fi
+
+        # 根据产品类型和版本类型设置 VPN_TYPE
+        if [ "$PRODUCT_TYPE" = "ATRUST" ]; then
+          VPN_TYPE="ATRUST"
+        else
+          # EasyConnect 根据版本类型设置
+          case "$VERSION_TYPE" in
+            "cli")
+              VPN_TYPE="EC_CLI"
+              ;;
+            "vncless")
+              VPN_TYPE="EC_GUI"  # 无 VNC 但仍是 GUI 版本
+              ;;
+            "vnc"|*)
+              VPN_TYPE="EC_GUI"  # 默认 GUI 版本
+              ;;
+          esac
+        fi
+
+        # 设置镜像名称 (根据版本类型调整后缀)
+        if [ "$VERSION_TYPE" = "cli" ]; then
+          IMAGE_NAME="${{ env.BASE_IMAGE_NAME }}${IMAGE_SUFFIX}-cli"
+        elif [ "$VERSION_TYPE" = "vncless" ]; then
+          IMAGE_NAME="${{ env.BASE_IMAGE_NAME }}${IMAGE_SUFFIX}-vncless"
+        else
+          IMAGE_NAME="${{ env.BASE_IMAGE_NAME }}${IMAGE_SUFFIX}"
+        fi
 
         echo "Selected product: $PRODUCT_TYPE"
         echo "Selected version: $VERSION"
+        echo "Selected version type: $VERSION_TYPE"
+        echo "VPN type: $VPN_TYPE"
         echo "Image name: $IMAGE_NAME"
 
         echo "product_type=$PRODUCT_TYPE" >> $GITHUB_OUTPUT
         echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "version_type=$VERSION_TYPE" >> $GITHUB_OUTPUT
+        echo "vpn_type=$VPN_TYPE" >> $GITHUB_OUTPUT
         echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
 
     - name: Setup build matrix
@@ -227,19 +272,26 @@ jobs:
       run: |
         PRODUCT_TYPE="${{ needs.setup.outputs.product_type }}"
         VERSION="${{ needs.setup.outputs.version }}"
+        VERSION_TYPE="${{ needs.setup.outputs.version_type }}"
+        VPN_TYPE="${{ needs.setup.outputs.vpn_type }}"
         ARCH="${{ matrix.architecture }}"
-        
+
+        echo "Build configuration:"
+        echo "  Product: $PRODUCT_TYPE"
+        echo "  Version: $VERSION"
+        echo "  Version Type: $VERSION_TYPE"
+        echo "  VPN Type: $VPN_TYPE"
+        echo "  Architecture: $ARCH"
+
         # 尝试查找构建参数文件
         if [ "$PRODUCT_TYPE" = "ATRUST" ]; then
           BUILD_ARGS_FILE="build-args/atrust-${VERSION}-${ARCH}.txt"
           FALLBACK_FILE="build-args/atrust-${ARCH}.txt"
-          DEFAULT_VPN_TYPE="ATRUST"
         else
           BUILD_ARGS_FILE="build-args/${VERSION}-${ARCH}.txt"
           FALLBACK_FILE="build-args/easyconnect-${ARCH}.txt"
-          DEFAULT_VPN_TYPE="EASYCONNECT"
         fi
-        
+
         if [ -f "$BUILD_ARGS_FILE" ]; then
           BUILD_ARGS=$(cat "$BUILD_ARGS_FILE" | tr '\n' ' ')
           echo "Using build args from: $BUILD_ARGS_FILE"
@@ -250,12 +302,12 @@ jobs:
           echo "No build args file found, using defaults"
           BUILD_ARGS=""
         fi
-        
+
         # 提取 VPN_URL
         if [ -n "$BUILD_ARGS" ]; then
           VPN_URL=$(echo "$BUILD_ARGS" | grep -o 'VPN_URL=[^ ]*' | cut -d'=' -f2)
         fi
-        
+
         # 设置默认值
         if [ -z "$VPN_URL" ]; then
           if [ "$PRODUCT_TYPE" = "ATRUST" ]; then
@@ -264,27 +316,64 @@ jobs:
             VPN_URL="https://download.sangfor.com.cn/download/product/sslvpn/pkg/linux_767/EasyConnect_x64_7_6_7_3.deb"
           fi
         fi
-        
+
         echo "vpn_url=$VPN_URL" >> $GITHUB_OUTPUT
-        echo "vpn_type=$DEFAULT_VPN_TYPE" >> $GITHUB_OUTPUT
+        echo "vpn_type=$VPN_TYPE" >> $GITHUB_OUTPUT
         echo "Found VPN_URL: $VPN_URL"
+        echo "Using VPN_TYPE: $VPN_TYPE"
 
     - name: Setup product tag
       id: product-tag
       run: |
         PRODUCT_TYPE="${{ needs.setup.outputs.product_type }}"
+        VERSION_TYPE="${{ needs.setup.outputs.version_type }}"
         VERSION="${{ needs.setup.outputs.version }}"
         ARCH="${{ matrix.architecture }}"
 
-        # 根据产品类型设置标签前缀
+        # 根据产品类型和版本类型设置标签前缀
         if [ "$PRODUCT_TYPE" = "ATRUST" ]; then
           PRODUCT_PREFIX="atrust"
         else
-          PRODUCT_PREFIX="easyconnect"
+          # EasyConnect 根据版本类型设置前缀
+          case "$VERSION_TYPE" in
+            "cli")
+              PRODUCT_PREFIX="easyconnect-cli"
+              ;;
+            "vncless")
+              PRODUCT_PREFIX="easyconnect-vncless"
+              ;;
+            "vnc"|*)
+              PRODUCT_PREFIX="easyconnect"
+              ;;
+          esac
         fi
 
         echo "product_prefix=$PRODUCT_PREFIX" >> $GITHUB_OUTPUT
-        echo "Product prefix: $PRODUCT_PREFIX"
+        echo "Product prefix: $PRODUCT_PREFIX (Product: $PRODUCT_TYPE, Type: $VERSION_TYPE)"
+
+    - name: Setup latest tag condition
+      id: latest-tag
+      run: |
+        VERSION_TYPE="${{ needs.setup.outputs.version_type }}"
+        ARCH="${{ matrix.architecture }}"
+        VERSION="${{ needs.setup.outputs.version }}"
+
+        # 检查是否应该添加 latest 标签
+        # 条件：VNC 版本 + AMD64 架构 + latest 版本
+        if [ "$VERSION_TYPE" = "vnc" ] && [ "$ARCH" = "amd64" ] && [ "$VERSION" = "${{ needs.setup.outputs.version }}" ]; then
+          # 进一步检查是否是 latest 版本（即自动解析的版本）
+          ORIGINAL_VERSION="${{ github.event.inputs.version }}"
+          if [ -z "$ORIGINAL_VERSION" ] || [ "$ORIGINAL_VERSION" = "latest" ]; then
+            ENABLE_LATEST="true"
+          else
+            ENABLE_LATEST="false"
+          fi
+        else
+          ENABLE_LATEST="false"
+        fi
+
+        echo "enable_latest=$ENABLE_LATEST" >> $GITHUB_OUTPUT
+        echo "Latest tag enabled: $ENABLE_LATEST (Type: $VERSION_TYPE, Arch: $ARCH, Version: $VERSION)"
 
     - name: Extract metadata
       id: meta
@@ -295,6 +384,7 @@ jobs:
           type=ref,event=branch,suffix=-${{ matrix.architecture }}
           type=ref,event=pr,suffix=-${{ matrix.architecture }}
           type=sha,prefix={{branch}}-${{ matrix.architecture }}-
+          type=raw,value=latest,enable=${{ steps.latest-tag.outputs.enable_latest == 'true' && github.ref == 'refs/heads/main' }}
           type=raw,value=latest-${{ matrix.architecture }},enable={{is_default_branch}}
           type=raw,value=${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
           type=raw,value=${{ steps.product-tag.outputs.product_prefix }}-${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
