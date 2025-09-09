@@ -22,10 +22,19 @@ on:
           - 'aTrust'
           - 'EasyConnect'
       version:
-        description: 'Version to build (aTrust: 2.2.16, 2.3.10.65, 2.3.10_sp3, 2.3.10_sp4, 2.4.10.50 | EasyConnect: 7.6.3, 7.6.7)'
+        description: 'Version to build'
         required: true
         default: 'latest'
-        type: string
+        type: choice
+        options:
+          - 'latest'
+          - '2.4.10.50'
+          - '2.3.10_sp4'
+          - '2.3.10_sp3'
+          - '2.3.10.65'
+          - '2.2.16'
+          - '7.6.7'
+          - '7.6.3'
       architecture:
         description: 'Architecture to build'
         required: true
