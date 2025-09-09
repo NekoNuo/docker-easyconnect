@@ -269,6 +269,23 @@ jobs:
         echo "vpn_type=$DEFAULT_VPN_TYPE" >> $GITHUB_OUTPUT
         echo "Found VPN_URL: $VPN_URL"
 
+    - name: Setup product tag
+      id: product-tag
+      run: |
+        PRODUCT_TYPE="${{ needs.setup.outputs.product_type }}"
+        VERSION="${{ needs.setup.outputs.version }}"
+        ARCH="${{ matrix.architecture }}"
+
+        # 根据产品类型设置标签前缀
+        if [ "$PRODUCT_TYPE" = "ATRUST" ]; then
+          PRODUCT_PREFIX="atrust"
+        else
+          PRODUCT_PREFIX="easyconnect"
+        fi
+
+        echo "product_prefix=$PRODUCT_PREFIX" >> $GITHUB_OUTPUT
+        echo "Product prefix: $PRODUCT_PREFIX"
+
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
@@ -280,7 +297,7 @@ jobs:
           type=sha,prefix={{branch}}-${{ matrix.architecture }}-
           type=raw,value=latest-${{ matrix.architecture }},enable={{is_default_branch}}
           type=raw,value=${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
-          type=raw,value=${{ github.event.inputs.product_type }}-${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
+          type=raw,value=${{ steps.product-tag.outputs.product_prefix }}-${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
 
     - name: Build and push image
       uses: docker/build-push-action@v5
@@ -337,10 +354,20 @@ jobs:
     steps:
     - name: Generate build summary
       run: |
+        # 设置产品前缀
+        PRODUCT_TYPE="${{ needs.setup.outputs.product_type }}"
+        if [ "$PRODUCT_TYPE" = "ATRUST" ]; then
+          PRODUCT_PREFIX="atrust"
+          DISPLAY_PRODUCT="aTrust"
+        else
+          PRODUCT_PREFIX="easyconnect"
+          DISPLAY_PRODUCT="EasyConnect"
+        fi
+
         echo "## 🚀 Build Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Configuration" >> $GITHUB_STEP_SUMMARY
-        echo "- **Product**: ${{ github.event.inputs.product_type || 'EasyConnect' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Product**: $DISPLAY_PRODUCT" >> $GITHUB_STEP_SUMMARY
         echo "- **Version**: ${{ needs.setup.outputs.version }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Architecture**: ${{ github.event.inputs.architecture || 'amd64' }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Image**: ${{ env.REGISTRY }}/${{ needs.setup.outputs.image_name }}" >> $GITHUB_STEP_SUMMARY
@@ -354,5 +381,5 @@ jobs:
         echo "  -p 127.0.0.1:1080:1080 \\" >> $GITHUB_STEP_SUMMARY
         echo "  -p 127.0.0.1:8888:8888 \\" >> $GITHUB_STEP_SUMMARY
         echo "  --sysctl net.ipv4.conf.default.route_localnet=1 \\" >> $GITHUB_STEP_SUMMARY
-        echo "  ${{ env.REGISTRY }}/${{ needs.setup.outputs.image_name }}:${{ needs.setup.outputs.version }}-amd64" >> $GITHUB_STEP_SUMMARY
+        echo "  ${{ env.REGISTRY }}/${{ needs.setup.outputs.image_name }}:${PRODUCT_PREFIX}-${{ needs.setup.outputs.version }}-amd64" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
