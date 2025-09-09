@@ -28,6 +28,7 @@ on:
         type: choice
         options:
           - 'latest'
+          - '2.5.16.20'
           - '2.4.10.50'
           - '2.3.10_sp4'
           - '2.3.10_sp3'
@@ -375,6 +376,19 @@ jobs:
         echo "enable_latest=$ENABLE_LATEST" >> $GITHUB_OUTPUT
         echo "Latest tag enabled: $ENABLE_LATEST (Type: $VERSION_TYPE, Arch: $ARCH, Version: $VERSION)"
 
+    - name: Setup version type tags
+      id: version-type-tags
+      run: |
+        VERSION_TYPE="${{ needs.setup.outputs.version_type }}"
+
+        # 为所有版本类型生成标签，包括 VNC
+        TYPE_SUFFIX="-${VERSION_TYPE}"
+        TYPE_PREFIX="${VERSION_TYPE}-"
+
+        echo "type_suffix=$TYPE_SUFFIX" >> $GITHUB_OUTPUT
+        echo "type_prefix=$TYPE_PREFIX" >> $GITHUB_OUTPUT
+        echo "Version type tags: suffix='$TYPE_SUFFIX', prefix='$TYPE_PREFIX' (Type: $VERSION_TYPE)"
+
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
@@ -385,7 +399,9 @@ jobs:
           type=ref,event=pr,suffix=-${{ matrix.architecture }}
           type=sha,prefix={{branch}}-${{ matrix.architecture }}-
           type=raw,value=latest,enable=${{ steps.latest-tag.outputs.enable_latest == 'true' && github.ref == 'refs/heads/main' }}
-          type=raw,value=latest-${{ matrix.architecture }},enable={{is_default_branch}}
+          type=raw,value=latest${{ steps.version-type-tags.outputs.type_suffix }}-${{ matrix.architecture }},enable={{is_default_branch}}
+          type=raw,value=${{ steps.version-type-tags.outputs.type_prefix }}${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
+          type=raw,value=${{ steps.product-tag.outputs.product_prefix }}-${{ steps.version-type-tags.outputs.type_prefix }}${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
           type=raw,value=${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
           type=raw,value=${{ steps.product-tag.outputs.product_prefix }}-${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
 

@@ -96,25 +96,31 @@ Push to registry: false
 
 **aTrust 镜像** (仓库: `gys619/docker-easyconnect-atrust`):
 - `latest` ⭐ (仅限 VNC + AMD64 + latest 版本)
-- `atrust-{version}-{architecture}` (例如: `atrust-2.4.10.50-amd64`)
-- `{version}-{architecture}` (例如: `2.4.10.50-amd64`)
-- `latest-{architecture}` (例如: `latest-amd64`)
+- `latest-vnc-{architecture}` (例如: `latest-vnc-amd64`)
+- `vnc-{version}-{architecture}` (例如: `vnc-2.4.10.50-amd64`)
+- `atrust-vnc-{version}-{architecture}` (例如: `atrust-vnc-2.4.10.50-amd64`)
+- `{version}-{architecture}` (例如: `2.4.10.50-amd64`) *兼容性*
+- `atrust-{version}-{architecture}` (例如: `atrust-2.4.10.50-amd64`) *兼容性*
 
-**EasyConnect VNC 镜像** (仓库: `gys619/docker-easyconnect`):
+**EasyConnect 镜像** (仓库: `gys619/docker-easyconnect`):
+
+*VNC 版本*:
 - `latest` ⭐ (仅限 VNC + AMD64 + latest 版本)
-- `easyconnect-{version}-{architecture}` (例如: `easyconnect-7.6.7-amd64`)
-- `{version}-{architecture}` (例如: `7.6.7-amd64`)
-- `latest-{architecture}` (例如: `latest-amd64`)
+- `latest-vnc-{architecture}` (例如: `latest-vnc-amd64`)
+- `vnc-{version}-{architecture}` (例如: `vnc-7.6.7-amd64`)
+- `easyconnect-vnc-{version}-{architecture}` (例如: `easyconnect-vnc-7.6.7-amd64`)
+- `{version}-{architecture}` (例如: `7.6.7-amd64`) *兼容性*
+- `easyconnect-{version}-{architecture}` (例如: `easyconnect-7.6.7-amd64`) *兼容性*
 
-**EasyConnect VNCless 镜像** (仓库: `gys619/docker-easyconnect-vncless`):
+*VNCless 版本*:
+- `latest-vncless-{architecture}` (例如: `latest-vncless-amd64`)
+- `vncless-{version}-{architecture}` (例如: `vncless-7.6.7-amd64`)
 - `easyconnect-vncless-{version}-{architecture}` (例如: `easyconnect-vncless-7.6.7-amd64`)
-- `{version}-{architecture}` (例如: `7.6.7-amd64`)
-- `latest-{architecture}` (例如: `latest-amd64`)
 
-**EasyConnect CLI 镜像** (仓库: `gys619/docker-easyconnect-cli`):
+*CLI 版本*:
+- `latest-cli-{architecture}` (例如: `latest-cli-amd64`)
+- `cli-{version}-{architecture}` (例如: `cli-7.6.7-amd64`)
 - `easyconnect-cli-{version}-{architecture}` (例如: `easyconnect-cli-7.6.7-amd64`)
-- `{version}-{architecture}` (例如: `7.6.7-amd64`)
-- `latest-{architecture}` (例如: `latest-amd64`)
 
 **⭐ `latest` 标签规则**：
 - 仅在以下条件同时满足时生成 `latest` 标签：
