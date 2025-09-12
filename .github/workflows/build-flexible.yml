@@ -355,26 +355,11 @@ jobs:
     - name: Setup latest tag condition
       id: latest-tag
       run: |
-        VERSION_TYPE="${{ needs.setup.outputs.version_type }}"
-        ARCH="${{ matrix.architecture }}"
-        VERSION="${{ needs.setup.outputs.version }}"
-
-        # 检查是否应该添加 latest 标签
-        # 条件：VNC 版本 + AMD64 架构 + latest 版本
-        if [ "$VERSION_TYPE" = "vnc" ] && [ "$ARCH" = "amd64" ] && [ "$VERSION" = "${{ needs.setup.outputs.version }}" ]; then
-          # 进一步检查是否是 latest 版本（即自动解析的版本）
-          ORIGINAL_VERSION="${{ github.event.inputs.version }}"
-          if [ -z "$ORIGINAL_VERSION" ] || [ "$ORIGINAL_VERSION" = "latest" ]; then
-            ENABLE_LATEST="true"
-          else
-            ENABLE_LATEST="false"
-          fi
-        else
-          ENABLE_LATEST="false"
-        fi
+        # 简化 latest 标签逻辑：每次构建都推送 latest 标签
+        ENABLE_LATEST="true"
 
         echo "enable_latest=$ENABLE_LATEST" >> $GITHUB_OUTPUT
-        echo "Latest tag enabled: $ENABLE_LATEST (Type: $VERSION_TYPE, Arch: $ARCH, Version: $VERSION)"
+        echo "Latest tag enabled: $ENABLE_LATEST (Always push latest tag)"
 
     - name: Setup version type tags
       id: version-type-tags
@@ -395,15 +380,8 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ needs.setup.outputs.image_name }}
         tags: |
-          type=ref,event=branch,suffix=-${{ matrix.architecture }}
-          type=ref,event=pr,suffix=-${{ matrix.architecture }}
-          type=sha,prefix={{branch}}-${{ matrix.architecture }}-
           type=raw,value=latest,enable=${{ steps.latest-tag.outputs.enable_latest == 'true' && github.ref == 'refs/heads/main' }}
-          type=raw,value=latest${{ steps.version-type-tags.outputs.type_suffix }}-${{ matrix.architecture }},enable={{is_default_branch}}
-          type=raw,value=${{ steps.version-type-tags.outputs.type_prefix }}${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
           type=raw,value=${{ steps.product-tag.outputs.product_prefix }}-${{ steps.version-type-tags.outputs.type_prefix }}${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
-          type=raw,value=${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
-          type=raw,value=${{ steps.product-tag.outputs.product_prefix }}-${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
 
     - name: Build and push image
       uses: docker/build-push-action@v5
