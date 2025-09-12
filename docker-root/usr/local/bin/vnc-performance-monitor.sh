@@ -119,17 +119,158 @@ suggest_optimizations() {
     fi
 }
 
-# 自动优化
+# 动态调整 VNC 参数（无需重启）
+apply_dynamic_optimization() {
+    local optimization_level="$1"
+    local reason="$2"
+
+    log_info "应用动态优化 - 级别: $optimization_level, 原因: $reason"
+
+    # 创建优化配置文件
+    local config_file="/tmp/vnc-dynamic-config-$(date +%s)"
+
+    case "$optimization_level" in
+        "light")
+            cat > "$config_file" << EOF
+export VNC_FRAMERATE=20
+export VNC_QUALITY=4
+export VNC_COMPRESS=7
+export VNC_DEFERTIME=10
+EOF
+            ;;
+        "medium")
+            cat > "$config_file" << EOF
+export VNC_FRAMERATE=15
+export VNC_QUALITY=2
+export VNC_COMPRESS=8
+export VNC_DEFERTIME=50
+export VNC_DEPTH=16
+EOF
+            ;;
+        "heavy")
+            cat > "$config_file" << EOF
+export VNC_FRAMERATE=8
+export VNC_QUALITY=1
+export VNC_COMPRESS=9
+export VNC_DEFERTIME=100
+export VNC_DEPTH=8
+export VNC_SIZE=800x600
+EOF
+            ;;
+    esac
+
+    # 应用配置
+    if [ -f "$config_file" ]; then
+        source "$config_file"
+        log_info "已应用 $optimization_level 级别优化配置"
+
+        # 记录优化历史
+        echo "$(date -Iseconds)|$optimization_level|$reason|$(cat $config_file | grep export | tr '\n' ';')" >> /tmp/vnc-optimization-history.log
+
+        # 清理临时文件
+        rm -f "$config_file"
+
+        return 0
+    else
+        log_warn "优化配置文件创建失败"
+        return 1
+    fi
+}
+
+# 智能优化决策引擎
+intelligent_optimize() {
+    local cpu_usage="$1"
+    local mem_usage="$2"
+    local connections="$3"
+    local current_time=$(date +%s)
+
+    # 读取上次优化时间，避免频繁调整
+    local last_optimize_time=0
+    if [ -f "/tmp/vnc-last-optimize-time" ]; then
+        last_optimize_time=$(cat /tmp/vnc-last-optimize-time)
+    fi
+
+    local time_diff=$((current_time - last_optimize_time))
+    local min_interval=60  # 最小优化间隔60秒
+
+    if [ "$time_diff" -lt "$min_interval" ]; then
+        log_info "距离上次优化时间过短 (${time_diff}s < ${min_interval}s)，跳过本次优化"
+        return 0
+    fi
+
+    # 计算综合资源压力指数
+    local pressure_score=0
+    local optimization_level=""
+    local reason=""
+
+    # CPU 压力评分
+    if (( $(echo "$cpu_usage > 90" | bc -l) )); then
+        pressure_score=$((pressure_score + 30))
+        reason="${reason}CPU:${cpu_usage}% "
+    elif (( $(echo "$cpu_usage > 70" | bc -l) )); then
+        pressure_score=$((pressure_score + 20))
+        reason="${reason}CPU:${cpu_usage}% "
+    elif (( $(echo "$cpu_usage > 50" | bc -l) )); then
+        pressure_score=$((pressure_score + 10))
+        reason="${reason}CPU:${cpu_usage}% "
+    fi
+
+    # 内存压力评分 (KB转MB)
+    local mem_usage_mb=$((mem_usage / 1024))
+    if (( mem_usage_mb > 800 )); then
+        pressure_score=$((pressure_score + 25))
+        reason="${reason}MEM:${mem_usage_mb}MB "
+    elif (( mem_usage_mb > 500 )); then
+        pressure_score=$((pressure_score + 15))
+        reason="${reason}MEM:${mem_usage_mb}MB "
+    elif (( mem_usage_mb > 300 )); then
+        pressure_score=$((pressure_score + 8))
+        reason="${reason}MEM:${mem_usage_mb}MB "
+    fi
+
+    # 连接数压力评分
+    if (( connections > 5 )); then
+        pressure_score=$((pressure_score + 15))
+        reason="${reason}CONN:${connections} "
+    elif (( connections > 3 )); then
+        pressure_score=$((pressure_score + 8))
+        reason="${reason}CONN:${connections} "
+    fi
+
+    # 根据压力指数确定优化级别
+    if (( pressure_score >= 50 )); then
+        optimization_level="heavy"
+    elif (( pressure_score >= 25 )); then
+        optimization_level="medium"
+    elif (( pressure_score >= 10 )); then
+        optimization_level="light"
+    fi
+
+    # 执行优化
+    if [ -n "$optimization_level" ]; then
+        log_info "检测到资源压力 (评分: $pressure_score), 执行 $optimization_level 级别优化"
+        if apply_dynamic_optimization "$optimization_level" "$reason"; then
+            echo "$current_time" > /tmp/vnc-last-optimize-time
+            log_info "自动优化完成 - 级别: $optimization_level"
+        else
+            log_warn "自动优化失败"
+        fi
+    else
+        log_info "系统资源正常 (评分: $pressure_score), 无需优化"
+    fi
+}
+
+# 自动优化（增强版）
 auto_optimize() {
     local cpu_usage="$1"
     local connections="$2"
-    
+    local mem_usage="${3:-0}"
+
     if [ "$VNC_AUTO_OPTIMIZE" = "1" ]; then
-        if (( $(echo "$cpu_usage > 90" | bc -l) )); then
-            log_info "自动优化: CPU 使用率过高，调整参数"
-            # 这里可以动态调整 VNC 参数
-            # 注意：需要重启 VNC 服务才能生效
-        fi
+        log_info "启动智能自动优化引擎..."
+        intelligent_optimize "$cpu_usage" "$mem_usage" "$connections"
+    else
+        log_info "自动优化已禁用 (VNC_AUTO_OPTIMIZE != 1)"
     fi
 }
 
@@ -150,8 +291,8 @@ monitor_vnc() {
                 # 性能建议
                 suggest_optimizations "$connections" "$cpu_usage" "$mem_usage"
                 
-                # 自动优化
-                auto_optimize "$cpu_usage" "$connections"
+                # 自动优化（传递内存使用量）
+                auto_optimize "$cpu_usage" "$connections" "$mem_usage"
             fi
         else
             log_warn "无法获取 VNC 统计信息: $stats_output"

@@ -396,11 +396,26 @@ EOF
 		novnc
 	fi
 
-	# 启动 VNC 性能监控 (如果启用)
+	# 启动 VNC 性能监控和智能优化 (如果启用)
 	if [ "$VNC_AUTO_OPTIMIZE" = "1" ]; then
-		echo "启动 VNC 自动优化和性能监控..."
+		echo "启动 VNC 智能自动优化系统..."
+
+		# 生成初始优化配置
 		vnc-optimize.sh auto
-		vnc-performance-monitor.sh monitor &
+
+		# 启动智能优化守护进程（高级模式）
+		if [ "${VNC_SMART_OPTIMIZE:-0}" = "1" ]; then
+			echo "启动智能优化守护进程..."
+			vnc-auto-optimizer.sh monitor &
+			VNC_OPTIMIZER_PID=$!
+			echo "智能优化守护进程已启动，PID: $VNC_OPTIMIZER_PID"
+		else
+			# 启动基础性能监控（兼容模式）
+			echo "启动基础性能监控..."
+			vnc-performance-monitor.sh monitor &
+			VNC_MONITOR_PID=$!
+			echo "性能监控已启动，PID: $VNC_MONITOR_PID"
+		fi
 	fi
 
 	# 启动低资源优化器 (如果启用)
