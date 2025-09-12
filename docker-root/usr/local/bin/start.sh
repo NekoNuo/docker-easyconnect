@@ -188,7 +188,7 @@ start_tigervncserver() {
 
 	echo "VNC: 密码文件创建成功 ($(stat -c%s ~/.vnc/passwd) 字节)"
 
-	VNC_SIZE="${VNC_SIZE:-1110x620}"
+	VNC_SIZE="${VNC_SIZE:-1024x768}"
 
 	# VNC 性能优化配置
 	VNC_ENCODING="${VNC_ENCODING:-tight}"  # 编码格式: tight, zrle, hextile, raw
@@ -322,9 +322,29 @@ start_tigervncserver() {
 	# 等待端口释放
 	sleep 2
 
-	# 设置 X11 环境变量
+	# 设置 X11 环境变量和必要的系统配置
 	export XAUTHORITY=~/.Xauthority
 	export XDG_RUNTIME_DIR=/tmp
+	export XDG_SESSION_TYPE=x11
+	export XDG_CURRENT_DESKTOP=FLWM
+
+	# 确保 X11 相关目录存在
+	mkdir -p /tmp/.X11-unix
+	chmod 1777 /tmp/.X11-unix
+
+	# 创建必要的设备文件（如果不存在）
+	if [ ! -e /dev/null ]; then
+		mknod /dev/null c 1 3 2>/dev/null || true
+	fi
+	if [ ! -e /dev/zero ]; then
+		mknod /dev/zero c 1 5 2>/dev/null || true
+	fi
+	if [ ! -e /dev/random ]; then
+		mknod /dev/random c 1 8 2>/dev/null || true
+	fi
+	if [ ! -e /dev/urandom ]; then
+		mknod /dev/urandom c 1 9 2>/dev/null || true
+	fi
 
 	# 创建简单的 VNC 启动脚本
 	cat > ~/.vnc/xstartup << 'EOF'
@@ -336,6 +356,13 @@ EOF
 
 	open_port 5901
 
+	# 初始化 X11 环境
+	echo "VNC: 初始化 X11 环境..."
+	if ! /usr/local/bin/init-x11-env.sh; then
+		echo "VNC: ❌ X11 环境初始化失败"
+		return 1
+	fi
+
 	# 启动 TigerVNC 服务器 (直接使用 Xtigervnc，避免包装器问题)
 	echo "VNC: 启动 TigerVNC 服务器 (显示: $DISPLAY)"
 	echo "VNC: 使用直接启动方式避免包装器问题"
@@ -344,13 +371,26 @@ EOF
 	DISPLAY_NUM=${DISPLAY#:}
 	VNC_PORT=$((5900 + DISPLAY_NUM))
 
-	# 使用最简单的 Xtigervnc 启动方式
+	# 使用最简单的 Xtigervnc 启动方式，添加必要的 X11 参数
 	Xtigervnc "$DISPLAY" \
 		-geometry "$VNC_SIZE" \
 		-depth "$VNC_DEPTH" \
 		-rfbauth ~/.vnc/passwd \
 		-rfbport "$VNC_PORT" \
-		-desktop "aTrust VNC Desktop" &
+		-desktop "aTrust VNC Desktop" \
+		-extension GLX \
+		-extension RANDR \
+		-extension RENDER \
+		-extension MIT-SHM \
+		-extension XFIXES \
+		-extension XINERAMA \
+		-extension COMPOSITE \
+		-extension DAMAGE \
+		-pixelformat rgb888 \
+		-dpi 96 \
+		-noreset \
+		-nolisten tcp \
+		-SecurityTypes VncAuth &
 
 	VNC_PID=$!
 	echo "VNC: Xtigervnc 启动，PID: $VNC_PID"
@@ -374,6 +414,10 @@ EOF
 				tail -10 "$logfile"
 			fi
 		done
+
+		# 运行故障排除脚本
+		echo "VNC: 运行故障排除诊断..."
+		/usr/local/bin/vnc-troubleshoot.sh check || true
 
 		return 1
 	fi

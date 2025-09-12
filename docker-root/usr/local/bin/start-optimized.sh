@@ -250,7 +250,7 @@ start_tigervncserver() {
 
     chmod 600 ~/.vnc/passwd
 
-    VNC_SIZE="${VNC_SIZE:-1110x620}"
+    VNC_SIZE="${VNC_SIZE:-1024x768}"
     VNC_ENCODING="${VNC_ENCODING:-tight}"
     VNC_QUALITY="${VNC_QUALITY:-6}"
     VNC_COMPRESS="${VNC_COMPRESS:-6}"
@@ -303,7 +303,20 @@ EOF
         -depth "$VNC_DEPTH" \
         -rfbauth ~/.vnc/passwd \
         -rfbport "$VNC_PORT" \
-        -desktop "aTrust VNC Desktop" &
+        -desktop "aTrust VNC Desktop" \
+        -extension GLX \
+        -extension RANDR \
+        -extension RENDER \
+        -extension MIT-SHM \
+        -extension XFIXES \
+        -extension XINERAMA \
+        -extension COMPOSITE \
+        -extension DAMAGE \
+        -pixelformat rgb888 \
+        -dpi 96 \
+        -noreset \
+        -nolisten tcp \
+        -SecurityTypes VncAuth &
 
     VNC_PID=$!
     BACKGROUND_PIDS+=("$VNC_PID")

@@ -1,8 +1,8 @@
 # TigerVNC 服务器默认配置
-# 简化配置，只保留必要设置
+# 优化配置以解决 "Couldn't add screen" 问题
 
 # 基础显示设置
-$geometry = "1110x620";
+$geometry = "1024x768";
 $depth = 24;
 
 # 安全设置
@@ -10,5 +10,24 @@ $localhost = 0;           # 允许远程连接
 
 # 桌面设置
 $desktop = "aTrust VNC Desktop";
+
+# X11 扩展设置
+$extension{"GLX"} = 1;
+$extension{"RANDR"} = 1;
+$extension{"RENDER"} = 1;
+$extension{"MIT-SHM"} = 1;
+$extension{"XFIXES"} = 1;
+$extension{"XINERAMA"} = 1;
+$extension{"COMPOSITE"} = 1;
+$extension{"DAMAGE"} = 1;
+
+# 像素格式和 DPI 设置
+$pixelformat = "rgb888";
+$dpi = 96;
+
+# 其他设置
+$noreset = 1;
+$nolisten = "tcp";
+$SecurityTypes = "VncAuth";
 
 1; # 配置文件必须返回真值
