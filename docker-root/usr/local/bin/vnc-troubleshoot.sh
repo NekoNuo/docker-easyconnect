@@ -52,6 +52,7 @@ check_x11_environment() {
         "tigervnc-tools"
         "libx11-xcb1"
         "x11-utils"
+        "x11-xserver-utils"
         "flwm"
     )
     

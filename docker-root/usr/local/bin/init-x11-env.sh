@@ -78,27 +78,50 @@ create_device_files() {
 # 检查 X11 依赖
 check_x11_dependencies() {
     log_info "检查 X11 依赖..."
-    
+
     local required_commands=(
         "Xtigervnc"
         "flwm"
+    )
+
+    local optional_commands=(
         "xauth"
         "xset"
+        "xrandr"
     )
-    
-    local missing_commands=()
-    
+
+    local missing_required=()
+    local missing_optional=()
+
+    # 检查必需命令
     for cmd in "${required_commands[@]}"; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
-            missing_commands+=("$cmd")
+            missing_required+=("$cmd")
+        else
+            log_info "✅ 找到必需命令: $cmd"
         fi
     done
-    
-    if [ ${#missing_commands[@]} -gt 0 ]; then
-        log_error "缺少必要的 X11 命令: ${missing_commands[*]}"
+
+    # 检查可选命令
+    for cmd in "${optional_commands[@]}"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            missing_optional+=("$cmd")
+        else
+            log_info "✅ 找到可选命令: $cmd"
+        fi
+    done
+
+    # 只有缺少必需命令时才失败
+    if [ ${#missing_required[@]} -gt 0 ]; then
+        log_error "缺少必要的 X11 命令: ${missing_required[*]}"
         return 1
     fi
-    
+
+    # 警告缺少的可选命令
+    if [ ${#missing_optional[@]} -gt 0 ]; then
+        log_warn "缺少可选的 X11 命令: ${missing_optional[*]} (不影响基本功能)"
+    fi
+
     log_info "X11 依赖检查通过"
 }
 

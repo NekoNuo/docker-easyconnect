@@ -356,11 +356,18 @@ EOF
 
 	open_port 5901
 
-	# 初始化 X11 环境
+	# 初始化 X11 环境（使用简化版本）
 	echo "VNC: 初始化 X11 环境..."
-	if ! /usr/local/bin/init-x11-env.sh; then
-		echo "VNC: ❌ X11 环境初始化失败"
-		return 1
+	if ! /usr/local/bin/init-x11-simple.sh; then
+		echo "VNC: ❌ X11 环境初始化失败，尝试基本初始化..."
+		# 基本的环境设置作为后备
+		mkdir -p /tmp/.X11-unix
+		chmod 1777 /tmp/.X11-unix 2>/dev/null || true
+		export XAUTHORITY=~/.Xauthority
+		export XDG_RUNTIME_DIR=/tmp
+		touch ~/.Xauthority 2>/dev/null || true
+		chmod 600 ~/.Xauthority 2>/dev/null || true
+		echo "VNC: 基本环境设置完成"
 	fi
 
 	# 启动 TigerVNC 服务器 (直接使用 Xtigervnc，避免包装器问题)
@@ -371,29 +378,36 @@ EOF
 	DISPLAY_NUM=${DISPLAY#:}
 	VNC_PORT=$((5900 + DISPLAY_NUM))
 
-	# 使用最简单的 Xtigervnc 启动方式，添加必要的 X11 参数
+	# 使用最简单的 Xtigervnc 启动方式
+	echo "VNC: 尝试启动 TigerVNC (基本模式)..."
 	Xtigervnc "$DISPLAY" \
 		-geometry "$VNC_SIZE" \
 		-depth "$VNC_DEPTH" \
 		-rfbauth ~/.vnc/passwd \
 		-rfbport "$VNC_PORT" \
 		-desktop "aTrust VNC Desktop" \
-		-extension GLX \
-		-extension RANDR \
-		-extension RENDER \
-		-extension MIT-SHM \
-		-extension XFIXES \
-		-extension XINERAMA \
-		-extension COMPOSITE \
-		-extension DAMAGE \
-		-pixelformat rgb888 \
 		-dpi 96 \
-		-noreset \
-		-nolisten tcp \
 		-SecurityTypes VncAuth &
 
 	VNC_PID=$!
-	echo "VNC: Xtigervnc 启动，PID: $VNC_PID"
+	echo "VNC: Xtigervnc 启动，PID: $VNC_PID (基本模式)"
+
+	# 等待一下看是否启动成功
+	sleep 2
+
+	# 如果基本模式失败，尝试更简单的模式
+	if ! kill -0 "$VNC_PID" 2>/dev/null; then
+		echo "VNC: 基本模式失败，尝试最简模式..."
+		Xtigervnc "$DISPLAY" \
+			-geometry "$VNC_SIZE" \
+			-depth 24 \
+			-rfbauth ~/.vnc/passwd \
+			-rfbport "$VNC_PORT" \
+			-desktop "VNC Desktop" &
+
+		VNC_PID=$!
+		echo "VNC: Xtigervnc 启动，PID: $VNC_PID (最简模式)"
+	fi
 
 	# 检查 VNC 服务器是否成功启动
 	sleep 3

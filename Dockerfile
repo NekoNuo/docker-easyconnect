@@ -72,7 +72,7 @@ RUN . /tmp/build-scripts/config-apt.sh && \
     fi && \
     apt-get install -y --no-install-recommends --no-install-suggests \
         libx11-xcb1 libnss3 libasound2 iptables xclip libxtst6 \
-        dante-server tigervnc-standalone-server tigervnc-tools psmisc flwm x11-utils \
+        dante-server tigervnc-standalone-server tigervnc-tools psmisc flwm x11-utils x11-xserver-utils \
         busybox libssl-dev iproute2 tinyproxy-bin libxss1 ca-certificates \
         fonts-wqy-microhei socat jq bc netcat-openbsd $qemu_pkgs $extra_pkgs && \
     rm -rf /var/lib/apt/lists/*
@@ -98,6 +98,7 @@ RUN chmod +x /usr/local/bin/vnc-performance-monitor.sh && \
     chmod +x /usr/local/bin/memory-cleanup.sh && \
     chmod +x /usr/local/bin/start-optimized.sh && \
     chmod +x /usr/local/bin/init-x11-env.sh && \
+    chmod +x /usr/local/bin/init-x11-simple.sh && \
     chmod +x /usr/local/bin/vnc-troubleshoot.sh && \
     mkdir -p /etc/tigervnc /var/log /etc/X11/xorg.conf.d && \
     touch /var/log/vnc-performance.log && \
