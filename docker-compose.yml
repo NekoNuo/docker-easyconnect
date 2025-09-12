@@ -11,17 +11,20 @@ services:
         environment:
           - URLWIN=1
           - PASSWORD=xxxx
-          # VNC 性能优化配置
-          - VNC_SIZE=1024x768          # 使用标准分辨率避免屏幕创建问题
-          - VNC_NETWORK_MODE=balanced  # fast/balanced/slow
-          - VNC_ENCODING=tight         # tight/zrle/hextile/raw
-          - VNC_QUALITY=6              # 0-9 (0=最高压缩, 9=最高质量)
-          - VNC_COMPRESS=6             # 0-9 (0=无压缩, 9=最高压缩)
-          - VNC_FRAMERATE=30           # 1-60 fps
-          - VNC_DEPTH=24               # 8/16/24/32 bit
-          - VNC_AUTO_OPTIMIZE=1        # 启用自动优化
-          - VNC_AUTO_LOWRES=1          # 启用低资源自动检测
-          - VNC_MONITOR_INTERVAL=30    # 性能监控间隔(秒)
+          # VNC 内存优化配置 (推荐用于低内存环境)
+          - VNC_LITE_MODE=1            # 启用轻量级监控模式
+          - VNC_SIZE=640x480           # 低内存分辨率
+          - VNC_DEPTH=16               # 降低色彩深度节省内存
+          - VNC_QUALITY=2              # 高压缩比
+          - VNC_COMPRESS=9             # 最高压缩
+          - VNC_FRAMERATE=15           # 降低帧率
+          - VNC_MEMORY_OPTIMIZE=1      # 启用内存优化
+          - VNC_MONITOR_INTERVAL=120   # 降低监控频率
+          # 高性能配置 (注释掉以使用低内存配置)
+          # - VNC_SIZE=1024x768        # 标准分辨率
+          # - VNC_DEPTH=24             # 标准色彩深度
+          # - VNC_AUTO_OPTIMIZE=1      # 启用完整优化 (占用更多内存)
+          # - VNC_SMART_OPTIMIZE=1     # 智能优化 (占用更多内存)
         ports:
           - "127.0.0.1:5901:5901"
           - "127.0.0.1:1080:1080"

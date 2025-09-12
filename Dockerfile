@@ -100,10 +100,14 @@ RUN chmod +x /usr/local/bin/vnc-performance-monitor.sh && \
     chmod +x /usr/local/bin/init-x11-env.sh && \
     chmod +x /usr/local/bin/init-x11-simple.sh && \
     chmod +x /usr/local/bin/vnc-troubleshoot.sh && \
+    chmod +x /usr/local/bin/vnc-monitor-lite.sh && \
+    chmod +x /usr/local/bin/memory-optimizer.sh && \
     mkdir -p /etc/tigervnc /var/log /etc/X11/xorg.conf.d && \
     touch /var/log/vnc-performance.log && \
     touch /var/log/memory-cleanup.log && \
-    touch /var/log/vnc-troubleshoot.log
+    touch /var/log/vnc-troubleshoot.log && \
+    touch /var/log/vnc-lite.log && \
+    touch /var/log/memory-optimizer.log
 
 #ENV TYPE="" PASSWORD="" LOOP=""
 #ENV DISPLAY

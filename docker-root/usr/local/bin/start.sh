@@ -454,8 +454,13 @@ EOF
 		novnc
 	fi
 
-	# 启动 VNC 性能监控和智能优化 (如果启用)
-	if [ "$VNC_AUTO_OPTIMIZE" = "1" ]; then
+	# 启动 VNC 性能监控和智能优化 (根据模式选择)
+	if [ "${VNC_LITE_MODE:-0}" = "1" ]; then
+		echo "启动 VNC 轻量级监控模式..."
+		vnc-monitor-lite.sh monitor &
+		VNC_LITE_PID=$!
+		echo "轻量级监控已启动，PID: $VNC_LITE_PID"
+	elif [ "$VNC_AUTO_OPTIMIZE" = "1" ]; then
 		echo "启动 VNC 智能自动优化系统..."
 
 		# 生成初始优化配置
@@ -474,6 +479,15 @@ EOF
 			VNC_MONITOR_PID=$!
 			echo "性能监控已启动，PID: $VNC_MONITOR_PID"
 		fi
+	else
+		echo "VNC 监控已禁用 (设置 VNC_LITE_MODE=1 启用轻量级监控)"
+	fi
+
+	# 内存优化检查
+	if [ "${VNC_MEMORY_OPTIMIZE:-0}" = "1" ]; then
+		echo "启动内存优化..."
+		memory-optimizer.sh auto &
+		echo "内存优化已启动"
 	fi
 
 	# 启动低资源优化器 (如果启用)
