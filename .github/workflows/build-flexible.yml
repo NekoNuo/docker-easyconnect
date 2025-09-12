@@ -380,7 +380,7 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ needs.setup.outputs.image_name }}
         tags: |
-          type=raw,value=latest,enable=${{ steps.latest-tag.outputs.enable_latest == 'true' && github.ref == 'refs/heads/main' }}
+          type=raw,value=latest,enable=${{ steps.latest-tag.outputs.enable_latest == 'true' }}
           type=raw,value=${{ steps.product-tag.outputs.product_prefix }}-${{ steps.version-type-tags.outputs.type_prefix }}${{ needs.setup.outputs.version }}-${{ matrix.architecture }},enable={{is_default_branch}}
 
     - name: Build and push image
